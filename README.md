@@ -42,7 +42,7 @@ Regras de cálculo de uma venda (iguais às do app antigo):
 
 ## Instalar no celular
 
-O app é publicado automaticamente no GitHub Pages a cada atualização da branch `main`:
+O app é publicado automaticamente no GitHub Pages (branch `gh-pages`) a cada atualização da `main`:
 https://josue-caetano.github.io/primeiroprojeto/
 
 1. Abra o link no Chrome (Android) ou Safari (iPhone).
