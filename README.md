@@ -40,6 +40,19 @@ Regras de cálculo de uma venda (iguais às do app antigo):
 - `netProfit` = bruto − custo − taxa
 - com vários pagamentos, cada item recebe a sua parte proporcional de cada pagamento
 
+## Instalar no celular
+
+O app é publicado automaticamente no GitHub Pages a cada atualização da branch `main`:
+https://josue-caetano.github.io/primeiroprojeto/
+
+1. Abra o link no Chrome (Android) ou Safari (iPhone).
+2. Android: menu ⋮ → **Adicionar à tela inicial** / **Instalar app**.
+   iPhone: botão Compartilhar → **Adicionar à Tela de Início**.
+3. Na primeira tela, toque em **Restaurar de um arquivo de backup** e escolha o seu `.json`.
+
+Depois disso o app abre mesmo sem internet. Os dados ficam só no aparelho: faça backup em
+Ajustes de tempos em tempos.
+
 ## Desenvolvimento
 
 ```bash
