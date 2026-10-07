@@ -2,14 +2,17 @@
 // Campos opcionais existem porque o app antigo foi evoluindo: vendas antigas não têm
 // `payments`, `productType` nem `saleMode`, e o importador aceita as três gerações.
 
-export type PaymentMethod = 'pix' | 'debito' | 'credito' | 'dinheiro';
+// 'pix' = Pix direto na chave (sem taxa; é o que as vendas antigas registram).
+// 'pixMaquina' = Pix pago pela maquininha (cobra a taxa feePix).
+export type PaymentMethod = 'pix' | 'pixMaquina' | 'debito' | 'credito' | 'dinheiro';
 export const MULTIPLE_METHODS = 'Múltiplos';
 export type SaleMethod = PaymentMethod | typeof MULTIPLE_METHODS;
 
-export const PAYMENT_METHODS: PaymentMethod[] = ['pix', 'dinheiro', 'debito', 'credito'];
+export const PAYMENT_METHODS: PaymentMethod[] = ['pix', 'pixMaquina', 'dinheiro', 'debito', 'credito'];
 
 export const METHOD_LABELS: Record<string, string> = {
-  pix: 'Pix',
+  pix: 'Pix (chave)',
+  pixMaquina: 'Pix maquininha',
   dinheiro: 'Dinheiro',
   debito: 'Débito',
   credito: 'Crédito',
@@ -82,7 +85,7 @@ export interface Recipe {
 export interface Settings {
   feeDebit: number;
   feeCredit: number;
-  feePix: number;
+  feePix: number; // taxa do Pix pela maquininha (Pix direto na chave não tem taxa)
   storeName: string;
   userName: string;
   categories: string[];

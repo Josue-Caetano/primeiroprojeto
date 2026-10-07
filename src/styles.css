@@ -514,6 +514,9 @@ main {
   gap: 8px;
   margin: 12px 0;
 }
+.pay-grid .pay:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
 .pay-grid .pay {
   min-height: 72px;
   font-size: 1.1rem;
@@ -531,7 +534,7 @@ main {
 }
 .split-row {
   display: grid;
-  grid-template-columns: 80px 1fr auto;
+  grid-template-columns: 96px 1fr auto;
   gap: 8px;
   align-items: center;
   margin-top: 8px;
