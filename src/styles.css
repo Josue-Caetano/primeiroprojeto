@@ -618,38 +618,101 @@ main {
   background: var(--primary);
   border-radius: 7px;
 }
+.chart {
+  position: relative;
+}
 .vbars {
   display: flex;
-  align-items: flex-end;
   gap: 2px;
-  height: 160px;
   overflow-x: auto;
 }
 .vbar {
   flex: 1 0 14px;
-  height: 100%;
+  min-width: 14px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  cursor: pointer;
+}
+/* área do gráfico com altura fixa: todas as barras partem da mesma base */
+.vbar .plot {
+  height: 130px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  align-items: center;
 }
 .vbar .fill {
   width: 100%;
   background: var(--primary);
   border-radius: 3px 3px 0 0;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
 }
 .vbar .fill-sub {
   width: 100%;
   background: var(--bar-sub);
 }
-.vbar span {
+.vbar.dim .fill {
+  opacity: 0.45;
+}
+.vbar.on .fill {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+.vbar .tick {
   font-size: 0.6rem;
   color: var(--muted);
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   height: 34px;
+  margin: 4px auto 0;
+}
+.legend {
+  display: flex;
+  gap: 14px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: -2px 0 8px;
+}
+.legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+.tip {
+  position: absolute;
+  top: 28px; /* abaixo da legenda */
+  z-index: 2;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.18);
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+.tip .tip-title {
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.tip .tip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  white-space: nowrap;
+}
+.tip .tip-row b {
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- cadastros ---------- */

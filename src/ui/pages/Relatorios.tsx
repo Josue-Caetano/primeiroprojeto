@@ -1,10 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { db } from '../../db/db';
 import { byPaymentMethod, groupSum, localDay, totals } from '../../domain/calc';
 import { METHOD_LABELS } from '../../domain/types';
 import { Empty, Stat } from '../components/common';
-import { money, pct } from '../format';
+import { dayLabel, money, pct } from '../format';
 
 type Preset = 'hoje' | '7d' | '30d' | 'mes' | 'mesAnt' | 'tudo' | 'custom';
 
@@ -114,14 +114,13 @@ export function Relatorios() {
           {data.days.length > 1 && (
             <section className="card">
               {/* períodos longos viram barras por mês para caber na tela */}
-              <h3>Faturamento por {data.days.length > 45 ? 'mês' : 'dia'} (claro = lucro)</h3>
-              <Bars
+              <h3>Faturamento por {data.days.length > 45 ? 'mês' : 'dia'}</h3>
+              <VBars
                 rows={
                   data.days.length > 45
-                    ? data.months.map((m) => ({ label: m.key.slice(5, 7) + '/' + m.key.slice(2, 4), value: m.gross, sub: m.net }))
-                    : data.days.map((d) => ({ label: d.key.slice(8, 10) + '/' + d.key.slice(5, 7), value: d.gross, sub: d.net }))
+                    ? data.months.map((m) => ({ ...m, tick: m.key.slice(5, 7) + '/' + m.key.slice(2, 4), title: monthLabel(m.key) }))
+                    : data.days.map((d) => ({ ...d, tick: d.key.slice(8, 10) + '/' + d.key.slice(5, 7), title: dayLabel(d.key) }))
                 }
-                vertical
               />
             </section>
           )}
@@ -181,22 +180,102 @@ function Table({ rows }: { rows: { key: string; qty: number; gross: number; net:
   );
 }
 
-function Bars({ rows, vertical }: { rows: { label: string; value: number; sub?: number }[]; vertical?: boolean }) {
-  const max = Math.max(...rows.map((r) => r.value), 1);
-  if (vertical) {
-    return (
-      <div className="vbars">
-        {rows.map((r) => (
-          <div key={r.label} className="vbar" title={`${r.label}: ${money(r.value)}${r.sub != null ? ` (lucro ${money(r.sub)})` : ''}`}>
-            <div className="fill" style={{ height: `${(r.value / max) * 100}%` }}>
-              {r.sub != null && <div className="fill-sub" style={{ height: `${(Math.max(r.sub, 0) / Math.max(r.value, 0.01)) * 100}%` }} />}
-            </div>
-            <span>{r.label}</span>
-          </div>
+const monthLabel = (key: string) => {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+};
+
+type VRow = { key: string; tick: string; title: string; gross: number; net: number; sales: number };
+
+const TIP_WIDTH = 224;
+
+/** Colunas de faturamento com o lucro por dentro; tocar (ou passar o mouse) numa coluna abre o balão. */
+function VBars({ rows }: { rows: VRow[] }) {
+  const [sel, setSel] = useState<{ i: number; x: number } | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const max = Math.max(...rows.map((r) => r.gross), 1);
+
+  // toque fora do gráfico fecha o balão
+  useEffect(() => {
+    if (!sel) return;
+    const close = (e: PointerEvent) => {
+      if (!chartRef.current?.contains(e.target as Node)) setSel(null);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [sel]);
+
+  const select = (i: number, el: HTMLElement) => {
+    const box = chartRef.current!.getBoundingClientRect();
+    const bar = el.getBoundingClientRect();
+    setSel({ i, x: bar.left + bar.width / 2 - box.left });
+  };
+
+  const width = chartRef.current?.clientWidth ?? 0;
+  const r = sel ? (rows[sel.i] ?? null) : null; // trocar o período pode deixar o índice fora da lista
+  // o balão fica ao lado da coluna escolhida (do lado com mais espaço) para não cobri-la
+  const tipLeft = sel
+    ? Math.min(Math.max(sel.x > width / 2 ? sel.x - 12 - TIP_WIDTH : sel.x + 12, 0), Math.max(width - TIP_WIDTH, 0))
+    : 0;
+
+  return (
+    <div className="chart" ref={chartRef} onPointerLeave={(e) => e.pointerType === 'mouse' && setSel(null)}>
+      <div className="legend">
+        <span>
+          <i style={{ background: 'var(--primary)' }} />
+          Faturamento
+        </span>
+        <span>
+          <i style={{ background: 'var(--bar-sub)' }} />
+          Lucro
+        </span>
+      </div>
+      <div className="vbars" onScroll={() => setSel(null)}>
+        {rows.map((row, i) => (
+          <button
+            key={row.key}
+            type="button"
+            className={`vbar ${sel?.i === i ? 'on' : sel ? 'dim' : ''}`}
+            aria-label={`${row.title}: faturamento ${money(row.gross)}, lucro ${money(row.net)}`}
+            onClick={(e) => select(i, e.currentTarget)}
+            onPointerEnter={(e) => e.pointerType === 'mouse' && select(i, e.currentTarget)}
+          >
+            <span className="plot">
+              <span className="fill" style={{ height: `${(row.gross / max) * 100}%` }}>
+                <span className="fill-sub" style={{ height: `${(Math.max(row.net, 0) / Math.max(row.gross, 0.01)) * 100}%` }} />
+              </span>
+            </span>
+            <span className="tick">{row.tick}</span>
+          </button>
         ))}
       </div>
-    );
-  }
+      {r && (
+        <div className="tip" role="status" style={{ left: tipLeft, width: TIP_WIDTH }}>
+          <div className="tip-title">{r.title.charAt(0).toUpperCase() + r.title.slice(1)}</div>
+          <div className="tip-row">
+            <span>Faturamento</span>
+            <b>{money(r.gross)}</b>
+          </div>
+          <div className="tip-row">
+            <span>Lucro</span>
+            <b className="good">{money(r.net)}</b>
+          </div>
+          <div className="tip-row">
+            <span>Custos e taxas</span>
+            <b>{money(r.gross - r.net)}</b>
+          </div>
+          <div className="tip-row">
+            <span>Vendas</span>
+            <b>{r.sales}</b>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Bars({ rows }: { rows: { label: string; value: number }[] }) {
+  const max = Math.max(...rows.map((r) => r.value), 1);
   return (
     <div className="hbars">
       {rows.map((r) => (
