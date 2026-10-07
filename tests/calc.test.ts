@@ -76,3 +76,16 @@ describe('relatórios', () => {
     expect(totals(b.sales)).toMatchObject({ batches: 3, items: 8, gross: 75, fees: 1.04 });
   });
 });
+
+describe('Pix maquininha com código antigo', () => {
+  it('"pixMaquina" e "pix_mq" somam juntos no relatório e cobram a taxa de Pix', async () => {
+    const { feeRate } = await import('../src/domain/calc');
+    const base = { batchId: 'z', productId: 'p1', productName: 'S', qty: 1, grossValue: 10, costValue: 2, feeValue: 0, netProfit: 8, date: '2026-10-07T10:00:00.000Z' };
+    const sales = [
+      { ...base, id: 'a', method: 'pixMaquina', payments: [{ method: 'pixMaquina', value: 10 }] },
+      { ...base, id: 'b', method: 'pix_mq', payments: [{ method: 'pix_mq', value: 10 }] },
+    ] as unknown as Parameters<typeof byPaymentMethod>[0];
+    expect(byPaymentMethod(sales)).toEqual([{ method: 'pix_mq', value: 20 }]);
+    expect(feeRate('pixMaquina' as never, b.settings)).toBe(b.settings.feePix);
+  });
+});

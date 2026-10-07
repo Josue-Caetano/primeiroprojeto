@@ -97,3 +97,19 @@ describe('Pix da maquininha', () => {
     await v2.delete();
   });
 });
+
+describe('limpeza a cada abertura', () => {
+  it('venda "pixMaquina" gravada depois da migração é corrigida ao abrir o banco de novo', async () => {
+    const name = 'reabre-' + Math.random();
+    const a = new AppDB(name);
+    await a.sales.add({ id: 'y', batchId: 'b', productId: 'p', productName: 'S', qty: 1, method: 'pixMaquina' as never, payments: [{ method: 'pixMaquina' as never, value: 5 }], grossValue: 5, costValue: 1, feeValue: 0, netProfit: 4, date: '2026-10-07T10:00:00.000Z' });
+    a.close();
+    const b = new AppDB(name);
+    await b.open();
+    await new Promise((r) => setTimeout(r, 50));
+    const s = (await b.sales.get('y'))!;
+    expect(s.method).toBe('pix_mq');
+    expect(s.payments).toEqual([{ method: 'pix_mq', value: 5 }]);
+    await b.delete();
+  });
+});
