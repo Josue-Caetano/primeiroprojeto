@@ -61,3 +61,39 @@ describe('backup', () => {
     for (const s of raw.sales) expect(byId.get(s.id)).toEqual(s);
   }, 60_000);
 });
+
+describe('Pix da maquininha', () => {
+  it('"pixMaquina" (versão anterior) vira "pix_mq", o código do app antigo', () => {
+    const raw = structuredClone(fixture) as { sales: Record<string, unknown>[] };
+    raw.sales.push({
+      id: 's5', batchId: 'b5', productId: 'p1', productName: 'Suco', qty: 1, method: 'pixMaquina',
+      payments: [{ method: 'pixMaquina', value: 10 }], grossValue: 10, costValue: 2, feeValue: 0, netProfit: 8,
+      date: '2026-10-07T10:00:00.000Z',
+    });
+    raw.sales.push({
+      id: 's6', batchId: 'b6', productId: 'p1', productName: 'Suco', qty: 1, method: 'pix_mq',
+      payments: [{ method: 'pix_mq', value: 10 }], grossValue: 10, costValue: 2, feeValue: 0, netProfit: 8,
+      date: '2026-10-07T10:01:00.000Z',
+    });
+    const b = parseBackup(raw);
+    for (const id of ['s5', 's6']) {
+      const s = b.sales.find((x) => x.id === id)!;
+      expect(s.method).toBe('pix_mq');
+      expect(s.payments).toEqual([{ method: 'pix_mq', value: 10 }]);
+    }
+  });
+
+  it('vendas "pixMaquina" já gravadas no aparelho são migradas ao abrir o banco', async () => {
+    const name = 'migra-' + Math.random();
+    const { default: Dexie } = await import('dexie');
+    const v1 = new Dexie(name);
+    v1.version(1).stores({ products: 'id, type, name', sales: 'id, batchId, productId, date', insumos: 'id, name', recipes: 'id, linkedProductId', kv: 'key' });
+    await v1.table('sales').add({ id: 'x', batchId: 'b', productId: 'p', productName: 'S', qty: 1, method: 'pixMaquina', payments: [{ method: 'pixMaquina', value: 5 }], grossValue: 5, costValue: 1, feeValue: 0, netProfit: 4, date: '2026-10-07T10:00:00.000Z' });
+    v1.close();
+    const v2 = new AppDB(name);
+    const s = (await v2.sales.get('x'))!;
+    expect(s.method).toBe('pix_mq');
+    expect(s.payments).toEqual([{ method: 'pix_mq', value: 5 }]);
+    await v2.delete();
+  });
+});

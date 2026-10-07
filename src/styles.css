@@ -324,6 +324,13 @@ main {
   gap: 8px;
   margin-top: 12px;
 }
+/* resumo do dia: 2 colunas, o lucro ocupa a linha inteira no fim */
+.stats-day {
+  grid-template-columns: 1fr 1fr;
+}
+.stats-day .stat:last-child {
+  grid-column: 1 / -1;
+}
 .stat {
   background: var(--surface);
   border: 1px solid var(--border);

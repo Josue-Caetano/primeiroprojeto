@@ -149,7 +149,7 @@ function Checkout({
   onConfirm: (p: Payment[]) => Promise<void>;
 }) {
   const [multi, setMulti] = useState(false);
-  const [values, setValues] = useState<Record<PaymentMethod, number>>({ pix: 0, pixMaquina: 0, dinheiro: 0, debito: 0, credito: 0 });
+  const [values, setValues] = useState<Record<PaymentMethod, number>>({ pix: 0, pix_mq: 0, dinheiro: 0, debito: 0, credito: 0 });
   const [received, setReceived] = useState(0);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);

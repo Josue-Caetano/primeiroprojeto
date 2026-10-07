@@ -50,9 +50,10 @@ export function Historico() {
       </div>
       <p className="muted center">{dayLabel(day)}</p>
 
-      <div className="stats">
+      <div className="stats stats-day">
         <Stat label="Vendas" value={t.batches} />
         <Stat label="Bruto" value={money(t.gross)} />
+        <Stat label="Custo dos produtos" value={money(t.cost)} />
         <Stat label="Taxas" value={money(t.fees)} />
         <Stat label="Lucro" value={money(t.net)} tone={t.net >= 0 ? 'good' : 'bad'} />
       </div>

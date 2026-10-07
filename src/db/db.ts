@@ -2,9 +2,11 @@ import Dexie, { type Table } from 'dexie';
 import { computeRecipe } from '../domain/calc';
 import {
   DEFAULT_SETTINGS,
+  normalizeMethod,
   type Auth,
   type Backup,
   type Insumo,
+  type Payment,
   type Product,
   type Recipe,
   type Sale,
@@ -34,6 +36,16 @@ export class AppDB extends Dexie {
       recipes: 'id, linkedProductId',
       kv: 'key',
     });
+    // v2: Pix da maquininha passa a usar o mesmo código do app antigo ("pix_mq")
+    this.version(2).upgrade((tx) =>
+      tx
+        .table('sales')
+        .toCollection()
+        .modify((s: Sale) => {
+          s.method = normalizeMethod(s.method) as Sale['method'];
+          s.payments?.forEach((p) => (p.method = normalizeMethod(p.method) as Payment['method']));
+        }),
+    );
   }
 }
 

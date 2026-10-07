@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type Backup, type Settings } from './types';
+import { DEFAULT_SETTINGS, normalizeMethod, type Backup, type Settings } from './types';
 
 export class BackupError extends Error {}
 
@@ -62,7 +62,7 @@ export function parseBackup(input: string | unknown): Backup {
       productId: str(s.productId),
       productName: str(s.productName),
       qty: num(s.qty, 1),
-      method: str(s.method, 'dinheiro'),
+      method: normalizeMethod(str(s.method, 'dinheiro')),
       grossValue: num(s.grossValue),
       costValue: num(s.costValue),
       feeValue: num(s.feeValue),
@@ -70,7 +70,7 @@ export function parseBackup(input: string | unknown): Backup {
       date,
     };
     if (Array.isArray(s.payments)) {
-      out.payments = s.payments.filter(isObj).map((p) => ({ ...p, method: str(p.method), value: num(p.value) }));
+      out.payments = s.payments.filter(isObj).map((p) => ({ ...p, method: normalizeMethod(str(p.method)), value: num(p.value) }));
     }
     return out;
   }) as unknown as Backup['sales'];
