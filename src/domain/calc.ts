@@ -161,17 +161,18 @@ export function totals(sales: Sale[]): Totals {
 }
 
 export function groupSum<K>(sales: Sale[], key: (s: Sale) => K) {
-  const m = new Map<K, { qty: number; gross: number; net: number }>();
+  const m = new Map<K, { qty: number; gross: number; net: number; batches: Set<string> }>();
   for (const s of sales) {
     const k = key(s);
-    const cur = m.get(k) ?? { qty: 0, gross: 0, net: 0 };
+    const cur = m.get(k) ?? { qty: 0, gross: 0, net: 0, batches: new Set<string>() };
     cur.qty += s.qty;
     cur.gross += s.grossValue;
     cur.net += s.netProfit;
+    cur.batches.add(s.batchId);
     m.set(k, cur);
   }
   return [...m.entries()]
-    .map(([k, v]) => ({ key: k, qty: v.qty, gross: round2(v.gross), net: round2(v.net) }))
+    .map(([k, v]) => ({ key: k, qty: v.qty, gross: round2(v.gross), net: round2(v.net), sales: v.batches.size }))
     .sort((a, b) => b.gross - a.gross);
 }
 
