@@ -45,11 +45,11 @@ export function Ajustes({ onLogout }: { onLogout: () => void }) {
           <Field label="Crédito">
             <NumInput value={s.feeCredit} onChange={(feeCredit) => setS({ ...s, feeCredit })} />
           </Field>
-          <Field label="Pix">
+          <Field label="Pix maquininha">
             <NumInput value={s.feePix} onChange={(feePix) => setS({ ...s, feePix })} />
           </Field>
         </div>
-        <p className="muted small">As taxas valem para as próximas vendas; vendas já registradas guardam a taxa da época.</p>
+        <p className="muted small">Pix direto na sua chave não tem taxa. As taxas valem para as próximas vendas; vendas já registradas guardam a taxa da época.</p>
         <button className="primary full" onClick={() => save()}>
           {saved ? 'Salvo ✓' : 'Salvar'}
         </button>
