@@ -150,6 +150,24 @@ function Checkout({
 }) {
   const [multi, setMulti] = useState(false);
   const [values, setValues] = useState<Record<PaymentMethod, number>>({ pix: 0, pix_mq: 0, dinheiro: 0, debito: 0, credito: 0 });
+  // forma marcada com "restante": acompanha as outras e sempre completa o total
+  const [auto, setAuto] = useState<PaymentMethod | null>(null);
+
+  const balance = (next: Record<PaymentMethod, number>, autoM: PaymentMethod | null) => {
+    if (!autoM) return next;
+    const others = PAYMENT_METHODS.filter((m) => m !== autoM).reduce((a, m) => a + next[m], 0);
+    return { ...next, [autoM]: Math.max(round2(total - others), 0) };
+  };
+  const typeValue = (m: PaymentMethod, v: number) => {
+    // digitar na própria forma automática a torna manual
+    const autoM = m === auto ? null : auto;
+    if (m === auto) setAuto(null);
+    setValues((s) => balance({ ...s, [m]: v }, autoM));
+  };
+  const markRest = (m: PaymentMethod) => {
+    setAuto(m);
+    setValues((s) => balance(s, m));
+  };
   const [received, setReceived] = useState(0);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -197,15 +215,15 @@ function Checkout({
           {PAYMENT_METHODS.map((m) => (
             <div className="split-row" key={m}>
               <span>{METHOD_LABELS[m]}</span>
-              <NumInput value={values[m]} onChange={(v) => setValues((s) => ({ ...s, [m]: v }))} />
-              <button
-                className="ghost small"
-                onClick={() => setValues((s) => ({ ...s, [m]: round2(s[m] + Math.max(missing, 0)) }))}
-              >
+              <NumInput value={values[m]} onChange={(v) => typeValue(m, v)} />
+              <button className={auto === m ? 'chip on small' : 'ghost small'} onClick={() => markRest(m)}>
                 restante
               </button>
             </div>
           ))}
+          <p className="muted small">
+            Digite a parte de uma forma e toque em <b>restante</b> na outra (a ordem não importa).
+          </p>
           <p className={Math.abs(missing) < 0.01 ? 'good' : 'bad'}>
             {Math.abs(missing) < 0.01 ? 'Valores conferem' : missing > 0 ? `Faltam ${money(missing)}` : `Passou ${money(-missing)}`}
           </p>
