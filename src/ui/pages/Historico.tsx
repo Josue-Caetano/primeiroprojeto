@@ -66,12 +66,14 @@ export function Historico() {
           return (
             <li key={batchId} className="card">
               <div className="batch-head">
-                <b>{time(lines[0].date)}</b>
-                <span className="muted">
-                  {[...pays.entries()].map(([m, v]) => `${METHOD_LABELS[m] ?? m}${pays.size > 1 ? ' ' + money(v) : ''}`).join(' + ') ||
-                    METHOD_LABELS[lines[0].method]}
-                </span>
-                <b className="grow right">{money(bt.gross)}</b>
+                <div className="grow">
+                  <b>{time(lines[0].date)}</b>
+                  <div className="muted small pay-desc">
+                    {[...pays.entries()].map(([m, v]) => `${METHOD_LABELS[m] ?? m}${pays.size > 1 ? ' ' + money(v) : ''}`).join(' + ') ||
+                      METHOD_LABELS[lines[0].method]}
+                  </div>
+                </div>
+                <b className="nowrap">{money(bt.gross)}</b>
                 <button className="ghost small" onClick={() => removeBatch(batchId)} aria-label="Excluir venda">
                   🗑
                 </button>
@@ -82,8 +84,10 @@ export function Historico() {
                     <span className="grow">
                       {l.qty}× {l.productName.trim()}
                     </span>
-                    <span>{money(l.grossValue)}</span>
-                    <span className="muted small">lucro {money(l.netProfit)}</span>
+                    <span className="line-values">
+                      <span className="nowrap">{money(l.grossValue)}</span>
+                      <span className="muted small nowrap">lucro {money(l.netProfit)}</span>
+                    </span>
                     {lines.length > 1 && (
                       <button className="ghost small" onClick={() => removeLine(l)} aria-label="Excluir item">
                         ✕

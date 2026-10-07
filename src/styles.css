@@ -551,6 +551,18 @@ main {
   align-items: center;
   gap: 8px;
 }
+.pay-desc {
+  overflow-wrap: anywhere;
+}
+.nowrap {
+  white-space: nowrap;
+}
+.line-values {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
 .lines li {
   display: flex;
   gap: 8px;
