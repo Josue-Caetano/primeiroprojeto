@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { db, getAuth, getSettings, saveAuth, saveSettings } from './db/db';
 import { hashPassword, isLegacyHash, verifyPassword } from './domain/auth';
+import { localDay } from './domain/calc';
 import { DEFAULT_SETTINGS } from './domain/types';
 import { Field } from './ui/components/common';
 import { RestoreBackup } from './ui/components/RestoreBackup';
@@ -24,20 +25,22 @@ const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'ajustes', icon: '⚙️', label: 'Ajustes' },
 ];
 
-const UNLOCK_KEY = 'vendas-ambulante:unlocked';
-const sessionGet = (k: string) => {
+// A senha é pedida no primeiro uso de cada dia: guarda o dia (local) do último desbloqueio.
+// sessionStorage não serve aqui porque o Android descarta a sessão ao trocar de app.
+const UNLOCK_KEY = 'vendas-ambulante:unlockedDay';
+const isUnlockedToday = () => {
   try {
-    return sessionStorage.getItem(k);
+    return localStorage.getItem(UNLOCK_KEY) === localDay(new Date());
   } catch {
-    return null;
+    return false;
   }
 };
-const sessionSet = (k: string, v: string | null) => {
+const setUnlockedToday = (on: boolean) => {
   try {
-    if (v === null) sessionStorage.removeItem(k);
-    else sessionStorage.setItem(k, v);
+    if (on) localStorage.setItem(UNLOCK_KEY, localDay(new Date()));
+    else localStorage.removeItem(UNLOCK_KEY);
   } catch {
-    /* modo privado: só não lembra o desbloqueio */
+    /* sem armazenamento: só não lembra o desbloqueio */
   }
 };
 
@@ -52,7 +55,14 @@ export function App() {
     return { initialized: !!settingsRow || products > 0 || sales > 0, auth };
   }, []);
   const settings = useLiveQuery(getSettings, []);
-  const [unlocked, setUnlocked] = useState(sessionGet(UNLOCK_KEY) === '1');
+  const [unlocked, setUnlocked] = useState(isUnlockedToday);
+
+  // app deixado aberto de um dia para o outro: bloqueia ao voltar para ele
+  useEffect(() => {
+    const check = () => document.visibilityState === 'visible' && !isUnlockedToday() && setUnlocked(false);
+    document.addEventListener('visibilitychange', check);
+    return () => document.removeEventListener('visibilitychange', check);
+  }, []);
   const [tab, setTab] = useState<Tab>('vender');
   const [cadastro, setCadastro] = useState<Cadastro>('produtos');
 
@@ -68,7 +78,7 @@ export function App() {
         storeName={settings?.storeName}
         userName={settings?.userName}
         onUnlock={() => {
-          sessionSet(UNLOCK_KEY, '1');
+          setUnlockedToday(true);
           setUnlocked(true);
         }}
       />
@@ -98,7 +108,7 @@ export function App() {
         {tab === 'ajustes' && (
           <Ajustes
             onLogout={() => {
-              sessionSet(UNLOCK_KEY, null);
+              setUnlockedToday(false);
               setUnlocked(false);
             }}
           />
@@ -178,7 +188,7 @@ function Welcome() {
         await saveSettings({ ...DEFAULT_SETTINGS, storeName: storeName.trim() || DEFAULT_SETTINGS.storeName, userName });
         if (pw) {
           await saveAuth({ passwordHash: await hashPassword(pw), createdAt: new Date().toISOString() });
-          sessionSet(UNLOCK_KEY, '1');
+          setUnlockedToday(true);
         }
         location.reload();
       }}
