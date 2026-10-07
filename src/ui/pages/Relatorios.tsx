@@ -185,7 +185,7 @@ const monthLabel = (key: string) => {
   return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 };
 
-type VRow = { key: string; tick: string; title: string; gross: number; net: number; sales: number };
+type VRow = { key: string; tick: string; title: string; gross: number; cost: number; fees: number; net: number; sales: number };
 
 const TIP_WIDTH = 224;
 
@@ -261,8 +261,12 @@ function VBars({ rows }: { rows: VRow[] }) {
             <b className="good">{money(r.net)}</b>
           </div>
           <div className="tip-row">
-            <span>Custos e taxas</span>
-            <b>{money(r.gross - r.net)}</b>
+            <span>Custo dos produtos</span>
+            <b>{money(r.cost)}</b>
+          </div>
+          <div className="tip-row">
+            <span>Taxas</span>
+            <b>{money(r.fees)}</b>
           </div>
           <div className="tip-row">
             <span>Vendas</span>
