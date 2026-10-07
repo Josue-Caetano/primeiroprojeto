@@ -16,6 +16,7 @@ export const PAYMENT_METHODS: PaymentMethod[] = ['pix', 'pix_mq', 'dinheiro', 'd
 export const METHOD_LABELS: Record<string, string> = {
   pix: 'Pix (chave)',
   pix_mq: 'Pix maquininha',
+  pixMaquina: 'Pix maquininha', // código de uma versão anterior deste app
   dinheiro: 'Dinheiro',
   debito: 'Débito',
   credito: 'Crédito',

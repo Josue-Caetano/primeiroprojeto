@@ -37,16 +37,23 @@ export class AppDB extends Dexie {
       kv: 'key',
     });
     // v2: Pix da maquininha passa a usar o mesmo código do app antigo ("pix_mq")
-    this.version(2).upgrade((tx) =>
-      tx
-        .table('sales')
-        .toCollection()
-        .modify((s: Sale) => {
-          s.method = normalizeMethod(s.method) as Sale['method'];
-          s.payments?.forEach((p) => (p.method = normalizeMethod(p.method) as Payment['method']));
-        }),
+    this.version(2).upgrade((tx) => tx.table('sales').toCollection().modify(normalizeSale));
+    // Confere de novo a cada abertura: vendas "pixMaquina" podem chegar depois da
+    // migração (ex.: gravadas por uma versão antiga ainda aberta em outra aba).
+    this.on('ready', () =>
+      this.sales
+        .filter((s) => isLegacy(s.method) || !!s.payments?.some((p) => isLegacy(p.method)))
+        .modify(normalizeSale)
+        .then(() => undefined),
     );
   }
+}
+
+const isLegacy = (m: string) => normalizeMethod(m) !== m;
+
+function normalizeSale(s: Sale) {
+  s.method = normalizeMethod(s.method) as Sale['method'];
+  s.payments?.forEach((p) => (p.method = normalizeMethod(p.method) as Payment['method']));
 }
 
 export let db = new AppDB();

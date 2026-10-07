@@ -609,7 +609,7 @@ main {
 }
 .hbar {
   display: grid;
-  grid-template-columns: 70px 1fr auto;
+  grid-template-columns: 104px 1fr auto;
   gap: 8px;
   align-items: center;
   font-size: 0.85rem;

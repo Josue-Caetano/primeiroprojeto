@@ -1,5 +1,6 @@
 import {
   MULTIPLE_METHODS,
+  normalizeMethod,
   type Insumo,
   type Payment,
   type PaymentMethod,
@@ -14,7 +15,7 @@ import { newId } from './ids';
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export function feeRate(method: PaymentMethod, settings: Settings): number {
-  switch (method) {
+  switch (normalizeMethod(method)) {
     case 'debito':
       return settings.feeDebit;
     case 'credito':
@@ -28,9 +29,10 @@ export function feeRate(method: PaymentMethod, settings: Settings): number {
 
 /** Pagamentos de uma linha de venda. Vendas antigas não têm `payments`: o método único cobre o valor todo. */
 export function salePayments(sale: Sale): Payment[] {
-  if (sale.payments && sale.payments.length > 0) return sale.payments;
+  const norm = (m: string) => normalizeMethod(m) as PaymentMethod;
+  if (sale.payments && sale.payments.length > 0) return sale.payments.map((p) => ({ ...p, method: norm(p.method) }));
   if (sale.method === MULTIPLE_METHODS) return [];
-  return [{ method: sale.method, value: sale.grossValue }];
+  return [{ method: norm(sale.method), value: sale.grossValue }];
 }
 
 export interface CartItem {
@@ -195,7 +197,10 @@ export function byPaymentMethod(sales: Sale[]) {
       m.set(s.method, (m.get(s.method) ?? 0) + s.grossValue);
       continue;
     }
-    for (const p of pays) m.set(p.method, (m.get(p.method) ?? 0) + p.value);
+    for (const p of pays) {
+      const k = normalizeMethod(p.method);
+      m.set(k, (m.get(k) ?? 0) + p.value);
+    }
   }
   return [...m.entries()].map(([method, value]) => ({ method, value: round2(value) })).sort((a, b) => b.value - a.value);
 }
