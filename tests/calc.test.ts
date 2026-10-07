@@ -51,8 +51,8 @@ describe('venda', () => {
   it('Pix na chave não tem taxa; Pix na maquininha cobra a taxa de Pix', () => {
     const item = [{ product: salgado, qty: 2, unitPrice: 10 }];
     expect(buildSales(item, [{ method: 'pix', value: 20 }], b.settings)[0].feeValue).toBe(0);
-    const maq = buildSales(item, [{ method: 'pixMaquina', value: 20 }], b.settings)[0];
-    expect(maq).toMatchObject({ method: 'pixMaquina', feeValue: 0.1 }); // 20 × 0,49%
+    const maq = buildSales(item, [{ method: 'pix_mq', value: 20 }], b.settings)[0];
+    expect(maq).toMatchObject({ method: 'pix_mq', feeValue: 0.1 }); // 20 × 0,49%
   });
 
   it('recusa pagamento diferente do total', () => {

@@ -19,7 +19,7 @@ export function feeRate(method: PaymentMethod, settings: Settings): number {
       return settings.feeDebit;
     case 'credito':
       return settings.feeCredit;
-    case 'pixMaquina':
+    case 'pix_mq':
       return settings.feePix;
     default:
       return 0;
