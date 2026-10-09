@@ -1,0 +1,38 @@
+# Compila o APK do app (projeto em android/) com a versão atual do app web.
+# O APK fica disponível para download na página da execução, em "Artifacts".
+name: Gerar APK Android
+
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', 'src/**', 'public/**', 'index.html', 'package*.json', '.github/workflows/android.yml']
+  pull_request:
+    paths: ['android/**', 'src/**', 'public/**', 'index.html', 'package*.json', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - run: npm test
+      - run: npm run android:sync
+      - name: Compilar APK (debug)
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendas-ambulante-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
