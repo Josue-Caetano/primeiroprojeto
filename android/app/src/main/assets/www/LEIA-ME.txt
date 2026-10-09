@@ -1,0 +1,1 @@
+Arquivos gerados por "npm run android:sync" a partir de dist/. Não edite aqui.
