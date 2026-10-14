@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # publicar o APK em Releases
 
 jobs:
   apk:
@@ -36,3 +36,14 @@ jobs:
         with:
           name: vendas-ambulante-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Publicar APK em Releases (link fixo para baixar)
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk vendas-ambulante.apk
+          tag="apk-${{ github.run_number }}"
+          gh release create "$tag" vendas-ambulante.apk \
+            --title "App Vendas Ambulante (versão $tag)" \
+            --notes "APK gerado a partir do commit ${GITHUB_SHA::7}. Baixe vendas-ambulante.apk e instale por cima da versão anterior." \
+            --latest
