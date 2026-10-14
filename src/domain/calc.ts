@@ -69,6 +69,7 @@ export function buildSales(
   items: CartItem[],
   payments: Payment[],
   settings: Settings,
+  discount = 0,
   now: Date = new Date(),
 ): Sale[] {
   const active = items.filter((i) => i.qty > 0);
@@ -76,7 +77,11 @@ export function buildSales(
   const pays = payments.filter((p) => p.value > 0);
   if (pays.length === 0) throw new Error('Informe o pagamento');
 
-  const grosses = active.map((i) => round2(i.qty * i.unitPrice));
+  const listGrosses = active.map((i) => round2(i.qty * i.unitPrice));
+  const listTotal = round2(listGrosses.reduce((a, b) => a + b, 0));
+  if (discount < 0 || discount >= listTotal) throw new Error('Desconto inválido');
+  // desconto na venda toda: cada item perde a sua parte proporcional (sem perder centavo)
+  const grosses = discount > 0 ? splitProportional(round2(listTotal - discount), listGrosses) : listGrosses;
   const total = round2(grosses.reduce((a, b) => a + b, 0));
   const paid = round2(pays.reduce((a, p) => a + p.value, 0));
   if (Math.abs(paid - total) > 0.009) {

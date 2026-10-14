@@ -539,6 +539,22 @@ main {
 .change-calc b {
   grid-column: 1 / -1;
 }
+.discount-note {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+.discount-box {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 8px;
+  align-items: end;
+  margin-top: 4px;
+}
+.discount-box button {
+  grid-column: 1 / -1;
+  justify-self: center;
+  margin-top: 6px;
+}
 .split-row {
   display: grid;
   grid-template-columns: 96px 1fr auto;

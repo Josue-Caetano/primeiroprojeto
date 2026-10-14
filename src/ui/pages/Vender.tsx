@@ -125,12 +125,12 @@ export function Vender() {
         <Checkout
           total={total}
           onClose={() => setCheckout(false)}
-          onConfirm={async (payments) => {
-            const sales = buildSales(cart, payments, settings);
+          onConfirm={async (payments, discount) => {
+            const sales = buildSales(cart, payments, settings, discount);
             await db.sales.bulkAdd(sales);
             setCart([]);
             setCheckout(false);
-            setFlash(`Venda registrada: ${money(total)}`);
+            setFlash(`Venda registrada: ${money(round2(total - discount))}${discount > 0 ? ` (desconto ${money(discount)})` : ''}`);
             setTimeout(() => setFlash(''), 2500);
           }}
         />
@@ -140,14 +140,19 @@ export function Vender() {
 }
 
 function Checkout({
-  total,
+  total: fullTotal,
   onClose,
   onConfirm,
 }: {
   total: number;
   onClose: () => void;
-  onConfirm: (p: Payment[]) => Promise<void>;
+  onConfirm: (p: Payment[], discount: number) => Promise<void>;
 }) {
+  // desconto na venda toda (raro): fica escondido até tocar em "Dar desconto"
+  const [showDiscount, setShowDiscount] = useState(false);
+  const [discount, setDiscount] = useState(0);
+  const setDiscountSafe = (d: number) => setDiscount(Math.min(Math.max(round2(d), 0), round2(fullTotal - 0.01)));
+  const total = round2(fullTotal - discount);
   const [multi, setMulti] = useState(false);
   const [values, setValues] = useState<Record<PaymentMethod, number>>({ pix: 0, pix_mq: 0, dinheiro: 0, debito: 0, credito: 0 });
   // forma marcada com "restante": acompanha as outras e sempre completa o total
@@ -176,7 +181,7 @@ function Checkout({
     setBusy(true);
     setError('');
     try {
-      await onConfirm(payments);
+      await onConfirm(payments, discount);
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
@@ -188,6 +193,11 @@ function Checkout({
 
   return (
     <Modal title={`Total ${money(total)}`} onClose={onClose}>
+      {discount > 0 && (
+        <p className="discount-note">
+          Desconto de <b>{money(discount)}</b> (de {money(fullTotal)})
+        </p>
+      )}
       {!multi ? (
         <>
           <div className="pay-grid">
@@ -209,6 +219,31 @@ function Checkout({
           <button className="ghost full" onClick={() => setMulti(true)}>
             Dividir em mais de uma forma de pagamento
           </button>
+          {!showDiscount ? (
+            <button className="ghost full" onClick={() => setShowDiscount(true)}>
+              Dar desconto
+            </button>
+          ) : (
+            <div className="discount-box">
+              <label className="field">
+                <span>Desconto (R$)</span>
+                <NumInput value={discount} onChange={setDiscountSafe} autoFocus />
+              </label>
+              <label className="field">
+                <span>Cliente paga (R$)</span>
+                <NumInput value={total} onChange={(v) => v > 0 && setDiscountSafe(fullTotal - v)} />
+              </label>
+              <button
+                className="ghost small"
+                onClick={() => {
+                  setDiscount(0);
+                  setShowDiscount(false);
+                }}
+              >
+                Sem desconto
+              </button>
+            </div>
+          )}
         </>
       ) : (
         <>
