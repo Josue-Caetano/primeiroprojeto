@@ -57,15 +57,18 @@ Ajustes de tempos em tempos.
 
 A pasta `android/` é um projeto do Android Studio que abre este app num WebView, sem internet.
 
-- **Jeito mais fácil:** em GitHub → **Actions → Gerar APK Android**, abra a última execução e baixe
-  `vendas-ambulante-apk` em *Artifacts*. Dentro do ZIP está o `app-debug.apk`, que pode ser instalado
-  direto no celular.
+- **Jeito mais fácil:** abra no celular
+  https://github.com/Josue-Caetano/primeiroprojeto/releases/latest/download/vendas-ambulante.apk
+  e instale. O link sempre baixa o APK mais novo (gerado a cada atualização da `main`), e ele
+  instala **por cima** da versão anterior, mantendo os dados.
 - **Pelo Android Studio:** *File → Open* → pasta `android` → espere o Gradle sincronizar →
   *Build → Build App Bundle(s) / APK(s) → Build APK(s)*.
 - **Depois de mudar o app web**, rode `npm run android:sync` para copiar a versão nova para
   `android/app/src/main/assets/www` antes de gerar o APK.
 
-Os dados do APK ficam separados dos dados do navegador: use backup/restaurar para levá-los.
+Os APKs são assinados com a chave fixa `android/app/vendas.keystore` (uso pessoal; para a Play Store,
+gere uma chave própria e secreta). Os dados do APK ficam separados dos dados do navegador: use
+backup/restaurar para levá-los.
 Para instalar o APK ao lado do app antigo, troque o `applicationId` em `android/app/build.gradle.kts`
 se ele for igual ao do app antigo.
 
