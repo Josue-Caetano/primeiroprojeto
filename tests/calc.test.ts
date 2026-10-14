@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSales, byPaymentMethod, computeRecipe, salePayments, splitProportional, totals } from '../src/domain/calc';
+import { buildSales, byPaymentMethod, computeRecipe, round2, salePayments, splitProportional, totals } from '../src/domain/calc';
 import { parseBackup } from '../src/domain/backup';
 import type { Product } from '../src/domain/types';
 import { fixture } from './fixture';
@@ -53,6 +53,21 @@ describe('venda', () => {
     expect(buildSales(item, [{ method: 'pix', value: 20 }], b.settings)[0].feeValue).toBe(0);
     const maq = buildSales(item, [{ method: 'pix_mq', value: 20 }], b.settings)[0];
     expect(maq).toMatchObject({ method: 'pix_mq', feeValue: 0.1 }); // 20 × 0,49%
+  });
+
+  it('desconto na venda toda é dividido entre os itens e reduz o lucro', () => {
+    const sales = buildSales(
+      [{ product: salgado, qty: 1, unitPrice: 10 }, { product: suco, qty: 1, unitPrice: 10 }],
+      [{ method: 'dinheiro', value: 19.5 }],
+      b.settings,
+      0.5,
+    );
+    expect(sales.map((s) => s.grossValue)).toEqual([9.75, 9.75]);
+    expect(sales.reduce((a, s) => a + s.grossValue, 0)).toBeCloseTo(19.5, 10);
+    expect(sales[0].netProfit).toBe(round2(9.75 - 2.7));
+    // pagamento precisa bater com o total já com desconto
+    expect(() => buildSales([{ product: suco, qty: 1, unitPrice: 10 }], [{ method: 'pix', value: 10 }], b.settings, 0.5)).toThrow();
+    expect(() => buildSales([{ product: suco, qty: 1, unitPrice: 10 }], [{ method: 'pix', value: 0 }], b.settings, 10)).toThrow();
   });
 
   it('recusa pagamento diferente do total', () => {
