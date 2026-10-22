@@ -2,6 +2,8 @@ import { DEFAULT_SETTINGS, normalizeMethod, type Backup, type Settings } from '.
 
 export class BackupError extends Error {}
 
+const KNOWN_KEYS = new Set(['products', 'sales', 'insumos', 'recipes', 'settings', 'auth', 'gastos', 'caixas', 'exportDate']);
+
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 const num = (v: unknown, fallback = 0) => {
@@ -122,7 +124,26 @@ export function parseBackup(input: string | unknown): Backup {
       ? { ...data.auth, passwordHash: data.auth.passwordHash, createdAt: str(data.auth.createdAt) }
       : null;
 
-  return { products, sales, insumos, recipes, settings, auth, exportDate: str(data.exportDate) };
+  const gastos = requireArray(data, 'gastos').map((g, i) => ({
+    ...g,
+    id: requireId(g, 'Gasto', i),
+    data: str(g.data).slice(0, 10),
+    valor: num(g.valor),
+    descricao: str(g.descricao),
+    forma: str(g.forma, 'outro'),
+  })) as Backup['gastos'];
+  const caixas = Array.isArray(data.caixas) ? data.caixas : [];
+
+  const extra: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) if (!KNOWN_KEYS.has(k)) extra[k] = v;
+
+  return { products, sales, insumos, recipes, settings, auth, gastos, caixas, extra, exportDate: str(data.exportDate) };
+}
+
+/** Objeto do arquivo .json: campos extras do app antigo voltam para o nível de cima, como vieram. */
+export function serializeBackup(b: Backup): Record<string, unknown> {
+  const { extra, exportDate, auth, ...rest } = b;
+  return { ...rest, ...(auth ? { auth } : {}), ...extra, exportDate };
 }
 
 export function summarizeBackup(b: Backup) {

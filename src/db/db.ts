@@ -5,6 +5,7 @@ import {
   normalizeMethod,
   type Auth,
   type Backup,
+  type Gasto,
   type Insumo,
   type Payment,
   type Product,
@@ -14,7 +15,7 @@ import {
 } from '../domain/types';
 
 interface KV {
-  key: 'settings' | 'auth';
+  key: 'settings' | 'auth' | 'gastos' | 'caixas' | 'extra';
   value: unknown;
 }
 
@@ -82,14 +83,29 @@ export async function saveAuth(a: Auth | null) {
   else await db.kv.delete('auth');
 }
 
+export async function getGastos(): Promise<Gasto[]> {
+  return ((await db.kv.get('gastos'))?.value as Gasto[]) ?? [];
+}
+
+export async function saveGastos(g: Gasto[]) {
+  await db.kv.put({ key: 'gastos', value: g });
+}
+
+async function getKv<T>(key: KV['key'], fallback: T): Promise<T> {
+  return ((await db.kv.get(key))?.value as T) ?? fallback;
+}
+
 export async function exportBackup(): Promise<Backup> {
-  const [products, sales, insumos, recipes, settings, auth] = await Promise.all([
+  const [products, sales, insumos, recipes, settings, auth, gastos, caixas, extra] = await Promise.all([
     db.products.toArray(),
     db.sales.orderBy('date').toArray(),
     db.insumos.toArray(),
     db.recipes.toArray(),
     getSettings(),
     getAuth(),
+    getGastos(),
+    getKv<unknown[]>('caixas', []),
+    getKv<Record<string, unknown>>('extra', {}),
   ]);
   const byCreated = (a: Product, b: Product) => a.createdAt.localeCompare(b.createdAt);
   return {
@@ -99,6 +115,9 @@ export async function exportBackup(): Promise<Backup> {
     recipes,
     settings,
     ...(auth ? { auth } : {}),
+    gastos,
+    caixas,
+    extra,
     exportDate: new Date().toISOString(),
   };
 }
@@ -116,16 +135,29 @@ export async function restoreBackup(b: Backup, mode: RestoreMode = 'replace') {
       await Promise.all([db.products.clear(), db.sales.clear(), db.insumos.clear(), db.recipes.clear(), db.kv.clear()]);
       await saveSettings(b.settings);
       if (b.auth) await saveAuth(b.auth);
+      await saveGastos(b.gastos);
+      await db.kv.put({ key: 'caixas', value: b.caixas });
+      await db.kv.put({ key: 'extra', value: b.extra });
     } else {
       const cur = await getSettings();
       const categories = [...new Set([...cur.categories, ...b.settings.categories])];
       await saveSettings({ ...cur, categories });
+      await saveGastos(mergeById(await getGastos(), b.gastos));
+      await db.kv.put({ key: 'caixas', value: mergeById(await getKv<unknown[]>('caixas', []), b.caixas) });
+      await db.kv.put({ key: 'extra', value: { ...b.extra, ...(await getKv<Record<string, unknown>>('extra', {})) } });
     }
     await db.products.bulkPut(b.products);
     await db.sales.bulkPut(b.sales);
     await db.insumos.bulkPut(b.insumos);
     await db.recipes.bulkPut(b.recipes);
   });
+}
+
+/** Junta duas listas pelo campo "id" (a segunda completa a primeira; itens sem id são somados). */
+function mergeById<T>(cur: T[], add: T[]): T[] {
+  const idOf = (x: T) => (x && typeof x === 'object' ? (x as { id?: unknown }).id : undefined);
+  const seen = new Set<unknown>(cur.map(idOf).filter((id) => id !== undefined));
+  return [...cur, ...add.filter((x) => idOf(x) === undefined || !seen.has(idOf(x)))];
 }
 
 export async function wipeAll() {

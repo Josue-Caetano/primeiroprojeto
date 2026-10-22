@@ -184,6 +184,40 @@ button.big {
 .topbar h1 {
   margin: 0;
 }
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand img {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+.login-logo {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  border-radius: 20px;
+  align-self: center;
+}
+.logo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-preview {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.file-btn.small-btn {
+  margin-top: 0;
+  padding: 8px 12px;
+}
 main {
   flex: 1;
   width: 100%;
@@ -413,6 +447,25 @@ main {
   color: var(--muted);
   margin-bottom: 8px;
 }
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 0.82rem;
+}
+.meta-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border);
+  overflow: hidden;
+}
+.meta-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 4px;
+}
 .flash {
   background: var(--primary-soft);
   border-radius: 10px;
@@ -576,6 +629,13 @@ main {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.drawer {
+  margin: 10px 2px 0;
+  line-height: 1.5;
+}
+.lines li.clickable {
+  cursor: pointer;
 }
 .pay-desc {
   overflow-wrap: anywhere;

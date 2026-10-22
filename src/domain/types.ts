@@ -93,6 +93,22 @@ export interface Settings {
   storeName: string;
   userName: string;
   categories: string[];
+  /** Meta de vendas por dia em R$ (0 = sem meta). Mesmo campo do app antigo. */
+  metaDia?: number;
+  /** Dinheiro de troco com que o caixa começa o dia (R$). */
+  fundoTroco?: number;
+  /** Logo do negócio como imagem data:URL. */
+  logo?: string;
+}
+
+/** Despesa do dia (mesmo formato do app antigo: data AAAA-MM-DD, valor em R$). */
+export interface Gasto {
+  id: string;
+  data: string;
+  valor: number;
+  descricao: string;
+  forma: string;
+  [extra: string]: unknown;
 }
 
 export interface Auth {
@@ -107,6 +123,11 @@ export interface Backup {
   recipes: Recipe[];
   settings: Settings;
   auth?: Auth | null;
+  gastos: Gasto[];
+  /** Aberturas/fechamentos de caixa do app antigo: guardados como vieram e devolvidos no backup. */
+  caixas: unknown[];
+  /** Outros campos do backup que este app não usa (ex.: "app"), devolvidos intactos ao exportar. */
+  extra: Record<string, unknown>;
   exportDate: string;
 }
 

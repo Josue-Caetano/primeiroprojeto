@@ -53,6 +53,18 @@ export function Vender() {
       {today && (
         <div className="today-bar">
           Hoje: <b>{today.batches}</b> vendas · <b>{money(today.gross)}</b> · lucro <b>{money(today.net)}</b>
+          {(settings.metaDia ?? 0) > 0 && (
+            <div className="meta">
+              <div className="meta-track">
+                <div className="meta-fill" style={{ width: `${Math.min((today.gross / settings.metaDia!) * 100, 100)}%` }} />
+              </div>
+              <span>
+                {today.gross >= settings.metaDia!
+                  ? `Meta de ${money(settings.metaDia!)} batida! 🎉`
+                  : `Meta ${money(settings.metaDia!)} · faltam ${money(settings.metaDia! - today.gross)}`}
+              </span>
+            </div>
+          )}
         </div>
       )}
       {flash && <div className="flash">{flash}</div>}
