@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { AppDB, db, exportBackup, getAuth, recalcRecipes, restoreBackup, useDatabase } from '../src/db/db';
-import { BackupError, parseBackup, summarizeBackup } from '../src/domain/backup';
+import { BackupError, parseBackup, serializeBackup, summarizeBackup } from '../src/domain/backup';
 import { verifyPassword } from '../src/domain/auth';
 import { computeRecipe } from '../src/domain/calc';
 import { fixture } from './fixture';
@@ -24,6 +24,10 @@ describe('backup', () => {
     const out = await exportBackup();
     expect(strip(out)).toEqual(strip(parsed));
     expect(summarizeBackup(parsed)).toMatchObject({ products: 2, sales: 4, batches: 3 });
+    // gastos, caixas e campos desconhecidos do app antigo voltam no arquivo exatamente como vieram
+    const file = serializeBackup(out);
+    for (const k of ['gastos', 'caixas', 'app', 'settings']) expect(file[k], k).toEqual((fixture as Record<string, unknown>)[k] ?? file[k]);
+    expect(file).not.toHaveProperty('extra');
   });
 
   it('a senha do backup antigo continua funcionando', async () => {
@@ -59,6 +63,9 @@ describe('backup', () => {
     // cada registro original volta idêntico
     const byId = new Map(out.sales.map((s) => [s.id, s]));
     for (const s of raw.sales) expect(byId.get(s.id)).toEqual(s);
+    // tudo que não é venda/produto volta igual (gastos, caixas, ajustes com logo/meta, "app"...)
+    const file = serializeBackup(out);
+    for (const k of Object.keys(raw)) if (!['sales', 'exportDate', 'auth'].includes(k)) expect(file[k], k).toEqual(raw[k]);
   }, 60_000);
 });
 

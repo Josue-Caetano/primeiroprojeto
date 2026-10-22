@@ -1,9 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { db } from '../../db/db';
+import { db, getGastos } from '../../db/db';
 import { byPaymentMethod, groupSum, localDay, totals } from '../../domain/calc';
 import { METHOD_LABELS } from '../../domain/types';
 import { Empty, Stat } from '../components/common';
+import { totalGastos } from '../components/Gastos';
 import { dayLabel, money, pct } from '../format';
 
 type Preset = 'hoje' | '7d' | '30d' | 'mes' | 'mesAnt' | 'tudo' | 'custom';
@@ -56,6 +57,9 @@ export function Relatorios() {
     [start.getTime(), end.getTime()],
   );
   const products = useLiveQuery(() => db.products.toArray(), []);
+  const allGastos = useLiveQuery(getGastos, []);
+  const [fromDay, toDay] = [localDay(start), localDay(end)];
+  const gastoTotal = totalGastos((allGastos ?? []).filter((g) => g.data >= fromDay && g.data < toDay));
 
   const data = useMemo(() => {
     if (!sales) return null;
@@ -103,6 +107,14 @@ export function Relatorios() {
             <Stat label="Lucro líquido" value={money(data.t.net)} tone={data.t.net >= 0 ? 'good' : 'bad'} />
             <Stat label="Custo dos produtos" value={money(data.t.cost)} />
             <Stat label="Taxas de cartão/pix" value={money(data.t.fees)} />
+            {gastoTotal > 0 && <Stat label="Gastos" value={money(gastoTotal)} tone="bad" />}
+            {gastoTotal > 0 && (
+              <Stat
+                label="Lucro após gastos"
+                value={money(data.t.net - gastoTotal)}
+                tone={data.t.net - gastoTotal >= 0 ? 'good' : 'bad'}
+              />
+            )}
             <Stat label="Vendas" value={data.t.batches} />
             <Stat label="Itens vendidos" value={data.t.items} />
             <Stat label="Ticket médio" value={money(data.t.gross / data.t.batches)} />

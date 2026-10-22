@@ -23,5 +23,8 @@ export const fixture = {
   ],
   settings: { feeDebit: 1.91, feeCredit: 4.91, feePix: 0.49, storeName: 'Loja Teste', userName: 'Fulano', categories: ['Salgado', 'Suco'] },
   auth: { passwordHash: btoa('1234'), createdAt: '2026-06-18T22:03:27.776Z' },
+  gastos: [{ id: 'g1', data: '2026-10-06', valor: 110, descricao: 'Elaine', forma: 'outro' }],
+  caixas: [{ id: 'c1', abertura: '2026-10-06T08:00:00.000Z', fundo: 50 }],
+  app: 'vendeu',
   exportDate: '2026-10-06T22:56:13.815Z',
 };

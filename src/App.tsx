@@ -77,6 +77,7 @@ export function App() {
       <Login
         storeName={settings?.storeName}
         userName={settings?.userName}
+        logo={settings?.logo}
         onUnlock={() => {
           setUnlockedToday(true);
           setUnlocked(true);
@@ -87,7 +88,10 @@ export function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1>{settings?.storeName || 'Vendas'}</h1>
+        <h1 className="brand">
+          {settings?.logo && <img src={settings.logo} alt="" />}
+          {settings?.storeName || 'Vendas'}
+        </h1>
         {tab === 'cadastros' && (
           <div className="segmented">
             {(['produtos', 'insumos', 'fichas'] as Cadastro[]).map((c) => (
@@ -126,7 +130,17 @@ export function App() {
   );
 }
 
-function Login({ storeName, userName, onUnlock }: { storeName?: string; userName?: string; onUnlock: () => void }) {
+function Login({
+  storeName,
+  userName,
+  logo,
+  onUnlock,
+}: {
+  storeName?: string;
+  userName?: string;
+  logo?: string;
+  onUnlock: () => void;
+}) {
   const [pw, setPw] = useState('');
   const [error, setError] = useState('');
   const submit = async (e: React.FormEvent) => {
@@ -143,6 +157,7 @@ function Login({ storeName, userName, onUnlock }: { storeName?: string; userName
   };
   return (
     <form className="center-screen" onSubmit={submit}>
+      {logo && <img className="login-logo" src={logo} alt="" />}
       <h1>{storeName || 'Vendas'}</h1>
       {userName?.trim() && <p className="muted">Olá, {userName.trim()}!</p>}
       <input

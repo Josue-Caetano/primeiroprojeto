@@ -1,9 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
-import { db } from '../../db/db';
-import { localDay, salePayments, totals } from '../../domain/calc';
+import { db, getGastos, getSettings } from '../../db/db';
+import { localDay, round2, salePayments, totals } from '../../domain/calc';
 import { METHOD_LABELS, type Sale } from '../../domain/types';
 import { Empty, Stat } from '../components/common';
+import { GastosDoDia, totalGastos } from '../components/Gastos';
 import { dayLabel, money, time } from '../format';
 
 function shiftDay(day: string, delta: number) {
@@ -27,6 +28,17 @@ export function Historico() {
   }, [sales]);
 
   const t = totals(sales ?? []);
+  const gastos = useLiveQuery(getGastos, []) ?? [];
+  const settings = useLiveQuery(getSettings, []);
+  const gastosDia = gastos.filter((g) => g.data === day);
+  const gastoTotal = totalGastos(gastosDia);
+
+  // conferência da gaveta: troco inicial + dinheiro recebido − gastos pagos em dinheiro
+  let dinheiro = 0;
+  for (const s of sales ?? []) for (const p of salePayments(s)) if (p.method === 'dinheiro') dinheiro += p.value;
+  const fundo = settings?.fundoTroco ?? 0;
+  const gastoDinheiro = totalGastos(gastosDia.filter((g) => g.forma === 'dinheiro'));
+  const gaveta = round2(fundo + dinheiro - gastoDinheiro);
 
   const removeBatch = async (batchId: string) => {
     if (!confirm('Excluir esta venda? Esta ação não pode ser desfeita.')) return;
@@ -55,8 +67,23 @@ export function Historico() {
         <Stat label="Bruto" value={money(t.gross)} />
         <Stat label="Custo dos produtos" value={money(t.cost)} />
         <Stat label="Taxas" value={money(t.fees)} />
+        {gastoTotal > 0 && <Stat label="Gastos" value={money(gastoTotal)} tone="bad" />}
         <Stat label="Lucro" value={money(t.net)} tone={t.net >= 0 ? 'good' : 'bad'} />
+        {gastoTotal > 0 && (
+          <Stat label="Sobra do dia (lucro − gastos)" value={money(t.net - gastoTotal)} tone={t.net - gastoTotal >= 0 ? 'good' : 'bad'} />
+        )}
       </div>
+
+      {(fundo > 0 || dinheiro > 0) && (
+        <p className="muted small drawer">
+          💵 Dinheiro esperado na gaveta: <b>{money(gaveta)}</b>
+          <br />
+          {fundo > 0 && `troco inicial ${money(fundo)} + `}vendas em dinheiro {money(dinheiro)}
+          {gastoDinheiro > 0 && ` − gastos em dinheiro ${money(gastoDinheiro)}`}
+        </p>
+      )}
+
+      <GastosDoDia day={day} gastos={gastos} />
 
       {batches.length === 0 && <Empty>Nenhuma venda neste dia.</Empty>}
       <ul className="batch-list">
