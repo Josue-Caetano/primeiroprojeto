@@ -45,6 +45,26 @@ export function Ajustes({ onLogout }: { onLogout: () => void }) {
             <NumInput value={s.fundoTroco ?? 0} onChange={(fundoTroco) => setS({ ...s, fundoTroco })} />
           </Field>
         </div>
+        <Field label="Sua chave Pix" hint="Vai junto na mensagem de cobrança do fiado. Pode deixar vazio.">
+          <input
+            value={s.chavePix ?? ''}
+            maxLength={80}
+            placeholder="CPF, celular, e-mail ou chave aleatória"
+            onChange={(e) => setS({ ...s, chavePix: e.target.value })}
+          />
+        </Field>
+        <label className="toggle">
+          <input type="checkbox" checked={s.fiadoAtivo !== false} onChange={(e) => {
+              const next = { ...s, fiadoAtivo: e.target.checked };
+              setS(next);
+              save(next);
+            }} />
+          <span>
+            <b>Vender fiado</b>
+            <br />
+            <span className="muted small">Mostra o botão Fiado na hora de cobrar. Clientes e quem deve ficam em Cadastros → Fiado.</span>
+          </span>
+        </label>
         <h4>Logo</h4>
         <div className="logo-row">
           {s.logo ? <img className="logo-preview" src={s.logo} alt="Logo" /> : <span className="muted small">Sem logo</span>}

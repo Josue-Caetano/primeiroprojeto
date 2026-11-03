@@ -1,20 +1,18 @@
 import { useState } from 'react';
 import { getGastos, saveGastos } from '../../db/db';
 import { round2 } from '../../domain/calc';
+import { formaGasto } from '../../domain/backup';
 import { newId } from '../../domain/ids';
 import type { Gasto } from '../../domain/types';
 import { money } from '../format';
 import { Field, Modal, NumInput } from './common';
 
-// Códigos de forma de pagamento do gasto. "outro" é o que o app antigo grava; códigos
-// desconhecidos aparecem como vieram.
+// Como o gasto foi pago, nos mesmos códigos do Vendeu: "dinheiro" sai do caixa, "outro" foi Pix ou cartão.
 export const FORMAS_GASTO: [string, string][] = [
-  ['dinheiro', 'Dinheiro'],
-  ['pix', 'Pix'],
-  ['cartao', 'Cartão'],
-  ['outro', 'Outro'],
+  ['dinheiro', 'Dinheiro do caixa'],
+  ['outro', 'Pix ou cartão'],
 ];
-export const formaLabel = (f: string) => FORMAS_GASTO.find(([k]) => k === f)?.[1] ?? f;
+export const formaLabel = (f: string) => (formaGasto(f) === 'outro' ? 'Pix ou cartão' : 'Dinheiro do caixa');
 
 export const totalGastos = (g: Gasto[]) => round2(g.reduce((a, x) => a + x.valor, 0));
 
@@ -60,12 +58,11 @@ export function GastosDoDia({ day, gastos }: { day: string; gastos: Gasto[] }) {
 function GastoForm({ gasto, onClose }: { gasto: Gasto; onClose: () => void }) {
   const [g, setG] = useState(gasto);
   const isNew = !gasto.id;
-  const formas = FORMAS_GASTO.some(([k]) => k === g.forma) ? FORMAS_GASTO : [...FORMAS_GASTO, [g.forma, g.forma] as [string, string]];
 
   const save = async () => {
     if (g.valor <= 0) return alert('Informe o valor do gasto');
     const all = await getGastos();
-    const item = { ...g, id: isNew ? newId() : g.id, descricao: g.descricao.trim() };
+    const item = { ...g, id: isNew ? newId() : g.id, descricao: g.descricao.trim(), forma: formaGasto(g.forma) };
     await saveGastos(isNew ? [...all, item] : all.map((x) => (x.id === item.id ? item : x)));
     onClose();
   };
@@ -85,8 +82,8 @@ function GastoForm({ gasto, onClose }: { gasto: Gasto; onClose: () => void }) {
           <NumInput value={g.valor} onChange={(valor) => setG({ ...g, valor })} />
         </Field>
         <Field label="Pago com">
-          <select value={g.forma} onChange={(e) => setG({ ...g, forma: e.target.value })}>
-            {formas.map(([k, label]) => (
+          <select value={formaGasto(g.forma)} onChange={(e) => setG({ ...g, forma: e.target.value })}>
+            {FORMAS_GASTO.map(([k, label]) => (
               <option key={k} value={k}>
                 {label}
               </option>

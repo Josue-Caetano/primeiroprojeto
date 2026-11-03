@@ -1,10 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
-import { db, getSettings } from '../../db/db';
-import { buildSales, cartTotal, round2, totals, type CartItem } from '../../domain/calc';
-import { METHOD_LABELS, PAYMENT_METHODS, type Payment, type PaymentMethod, type Product } from '../../domain/types';
+import { db, getGastos, getRecebimentos, getSettings } from '../../db/db';
+import { buildSales, cartTotal, localDay, round2, totals, type CartItem } from '../../domain/calc';
+import { comTaxasFiado } from '../../domain/fiado';
+import { FIADO, METHOD_LABELS, PAYMENT_METHODS, type Payment, type PaymentMethod, type Product, type Sale } from '../../domain/types';
 import { Empty, Modal, NumInput } from '../components/common';
 import { money } from '../format';
+import { PassoFiado } from './Clientes';
 
 export function Vender() {
   const products = useLiveQuery(() => db.products.toArray(), []);
@@ -44,7 +46,12 @@ export function Vender() {
 
   const total = cartTotal(cart);
   const qtyOf = (id: string) => cart.find((x) => x.product.id === id)?.qty ?? 0;
-  const today = todaySales ? totals(todaySales) : null;
+  const hojeDia = localDay(new Date());
+  const gastosHoje = useLiveQuery(async () => (await getGastos()).filter((g) => g.data === hojeDia), [hojeDia]);
+  const recebidosHoje = useLiveQuery(async () => (await getRecebimentos()).filter((r) => localDay(r.data) === hojeDia), [hojeDia]);
+  const today = todaySales ? comTaxasFiado(totals(todaySales), recebidosHoje ?? []) : null;
+  // lucro de verdade: já descontando os gastos do dia
+  const lucroHoje = today ? round2(today.net - (gastosHoje ?? []).reduce((a, g) => a + g.valor, 0)) : 0;
 
   if (!products || !settings) return null;
 
@@ -52,7 +59,7 @@ export function Vender() {
     <div className="page vender">
       {today && (
         <div className="today-bar">
-          Hoje: <b>{today.batches}</b> vendas · <b>{money(today.gross)}</b> · lucro <b>{money(today.net)}</b>
+          Hoje: <b>{today.batches}</b> vendas · <b>{money(today.gross)}</b> · lucro <b>{money(lucroHoje)}</b>
           {(settings.metaDia ?? 0) > 0 && (
             <div className="meta">
               <div className="meta-track">
@@ -136,13 +143,19 @@ export function Vender() {
       {checkout && (
         <Checkout
           total={total}
+          fiadoAtivo={settings.fiadoAtivo !== false}
           onClose={() => setCheckout(false)}
-          onConfirm={async (payments, discount) => {
-            const sales = buildSales(cart, payments, settings, discount);
+          onConfirm={async (payments, discount, fiado) => {
+            const sales = buildSales(cart, payments, settings, discount, new Date(), fiado);
             await db.sales.bulkAdd(sales);
             setCart([]);
             setCheckout(false);
-            setFlash(`Venda registrada: ${money(round2(total - discount))}${discount > 0 ? ` (desconto ${money(discount)})` : ''}`);
+            const noFiado = round2(payments.filter((p) => p.method === FIADO).reduce((a, p) => a + p.value, 0));
+            setFlash(
+              noFiado > 0 && fiado
+                ? `${money(noFiado)} anotado no fiado de ${fiado.customerName}`
+                : `Venda registrada: ${money(round2(total - discount))}${discount > 0 ? ` (desconto ${money(discount)})` : ''}`,
+            );
             setTimeout(() => setFlash(''), 2500);
           }}
         />
@@ -151,28 +164,35 @@ export function Vender() {
   );
 }
 
+type FiadoInfo = Pick<Sale, 'customerId' | 'customerName' | 'dueDate'> & { customerName: string };
+
 function Checkout({
   total: fullTotal,
+  fiadoAtivo,
   onClose,
   onConfirm,
 }: {
   total: number;
+  fiadoAtivo: boolean;
   onClose: () => void;
-  onConfirm: (p: Payment[], discount: number) => Promise<void>;
+  onConfirm: (p: Payment[], discount: number, fiado?: FiadoInfo) => Promise<void>;
 }) {
+  const METHODS: PaymentMethod[] = fiadoAtivo ? [...PAYMENT_METHODS, FIADO] : PAYMENT_METHODS;
+  // com fiado no meio, antes de registrar pergunta para quem é e até quando vai pagar
+  const [pedindoCliente, setPedindoCliente] = useState<Payment[] | null>(null);
   // desconto na venda toda (raro): fica escondido até tocar em "Dar desconto"
   const [showDiscount, setShowDiscount] = useState(false);
   const [discount, setDiscount] = useState(0);
   const setDiscountSafe = (d: number) => setDiscount(Math.min(Math.max(round2(d), 0), round2(fullTotal - 0.01)));
   const total = round2(fullTotal - discount);
   const [multi, setMulti] = useState(false);
-  const [values, setValues] = useState<Record<PaymentMethod, number>>({ pix: 0, pix_mq: 0, dinheiro: 0, debito: 0, credito: 0 });
+  const [values, setValues] = useState<Record<PaymentMethod, number>>({ pix: 0, pix_mq: 0, dinheiro: 0, debito: 0, credito: 0, fiado: 0 });
   // forma marcada com "restante": acompanha as outras e sempre completa o total
   const [auto, setAuto] = useState<PaymentMethod | null>(null);
 
   const balance = (next: Record<PaymentMethod, number>, autoM: PaymentMethod | null) => {
     if (!autoM) return next;
-    const others = PAYMENT_METHODS.filter((m) => m !== autoM).reduce((a, m) => a + next[m], 0);
+    const others = METHODS.filter((m) => m !== autoM).reduce((a, m) => a + next[m], 0);
     return { ...next, [autoM]: Math.max(round2(total - others), 0) };
   };
   const typeValue = (m: PaymentMethod, v: number) => {
@@ -189,11 +209,15 @@ function Checkout({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const confirm = async (payments: Payment[]) => {
+  const confirm = async (payments: Payment[], fiado?: FiadoInfo) => {
+    if (!fiado && payments.some((p) => p.method === FIADO && p.value > 0)) {
+      setPedindoCliente(payments);
+      return;
+    }
     setBusy(true);
     setError('');
     try {
-      await onConfirm(payments, discount);
+      await onConfirm(payments, discount, fiado);
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
@@ -210,10 +234,16 @@ function Checkout({
           Desconto de <b>{money(discount)}</b> (de {money(fullTotal)})
         </p>
       )}
-      {!multi ? (
+      {pedindoCliente ? (
+        <PassoFiado
+          valor={round2(pedindoCliente.filter((p) => p.method === FIADO).reduce((a, p) => a + p.value, 0))}
+          onBack={() => setPedindoCliente(null)}
+          onConfirm={(c) => confirm(pedindoCliente, c)}
+        />
+      ) : !multi ? (
         <>
           <div className="pay-grid">
-            {PAYMENT_METHODS.map((m) => (
+            {METHODS.map((m) => (
               <button key={m} className={`pay ${m}`} disabled={busy} onClick={() => confirm([{ method: m, value: total }])}>
                 {METHOD_LABELS[m]}
               </button>
@@ -222,6 +252,16 @@ function Checkout({
           <div className="change-calc">
             <span>Troco — recebido em dinheiro:</span>
             <NumInput value={received} onChange={setReceived} />
+            <div className="chips notas">
+              {[5, 10, 20, 50, 100]
+                .filter((n) => n >= total)
+                .slice(0, 3)
+                .map((n) => (
+                  <button key={n} className={received === n ? 'chip on' : 'chip'} onClick={() => setReceived(n)}>
+                    R$ {n}
+                  </button>
+                ))}
+            </div>
             {received > 0 && (
               <b className={received >= total ? 'good' : 'bad'}>
                 {received >= total ? `Troco ${money(received - total)}` : `Faltam ${money(total - received)}`}
@@ -259,7 +299,7 @@ function Checkout({
         </>
       ) : (
         <>
-          {PAYMENT_METHODS.map((m) => (
+          {METHODS.map((m) => (
             <div className="split-row" key={m}>
               <span>{METHOD_LABELS[m]}</span>
               <NumInput value={values[m]} onChange={(v) => typeValue(m, v)} />
@@ -282,7 +322,7 @@ function Checkout({
               className="primary"
               disabled={busy || Math.abs(missing) >= 0.01}
               onClick={() =>
-                confirm(PAYMENT_METHODS.filter((m) => values[m] > 0).map((m) => ({ method: m, value: values[m] })))
+                confirm(METHODS.filter((m) => values[m] > 0).map((m) => ({ method: m, value: values[m] })))
               }
             >
               Confirmar

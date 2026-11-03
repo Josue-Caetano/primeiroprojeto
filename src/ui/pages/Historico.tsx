@@ -1,9 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
-import { db, getGastos, getSettings } from '../../db/db';
-import { localDay, round2, salePayments, totals } from '../../domain/calc';
-import { METHOD_LABELS, type Sale } from '../../domain/types';
-import { Empty, Stat } from '../components/common';
+import { db, getCaixas, getGastos, getRecebimentos, getSettings, saveCaixas } from '../../db/db';
+import { localDay, salePayments, totals } from '../../domain/calc';
+import { addDays, comTaxasFiado, conferirCaixa, sugestaoPreparo } from '../../domain/fiado';
+import { METHOD_LABELS, type Gasto, type Recebimento, type Sale } from '../../domain/types';
+import { Field, Modal, NumInput, Empty, Stat } from '../components/common';
+import { useFiado } from './Clientes';
 import { GastosDoDia, totalGastos } from '../components/Gastos';
 import { dayLabel, money, time } from '../format';
 
@@ -27,21 +29,33 @@ export function Historico() {
     return [...m.entries()].sort((a, b) => b[1][0].date.localeCompare(a[1][0].date));
   }, [sales]);
 
-  const t = totals(sales ?? []);
   const gastos = useLiveQuery(getGastos, []) ?? [];
   const settings = useLiveQuery(getSettings, []);
+  const recebimentos = useLiveQuery(getRecebimentos, []) ?? [];
+  const caixas = useLiveQuery(getCaixas, []) ?? [];
+  const fiado = useFiado();
+  const hoje = localDay(new Date());
+  const recebidosDia = recebimentos.filter((r) => localDay(r.data) === day).sort((a, b) => b.data.localeCompare(a.data));
+  // as taxas da maquininha de fiado recebido no cartão entram no dia em que recebeu
+  const t = comTaxasFiado(totals(sales ?? []), recebidosDia);
   const gastosDia = gastos.filter((g) => g.data === day);
   const gastoTotal = totalGastos(gastosDia);
+  const [conferindo, setConferindo] = useState(false);
+  const nomeCliente = (id: string) => fiado?.clientes.find((c) => c.id === id)?.nome ?? 'Cliente apagado';
 
-  // conferência da gaveta: troco inicial + dinheiro recebido − gastos pagos em dinheiro
-  let dinheiro = 0;
-  for (const s of sales ?? []) for (const p of salePayments(s)) if (p.method === 'dinheiro') dinheiro += p.value;
-  const fundo = settings?.fundoTroco ?? 0;
-  const gastoDinheiro = totalGastos(gastosDia.filter((g) => g.forma === 'dinheiro'));
-  const gaveta = round2(fundo + dinheiro - gastoDinheiro);
+  // conferência da gaveta: troco + vendas em dinheiro + fiado recebido em dinheiro − gastos pagos com o caixa
+  const salvo = caixas.find((c) => c.dia === day);
+  const caixa = conferirCaixa(sales ?? [], gastosDia, salvo?.fundo ?? settings?.fundoTroco ?? 0, salvo?.contado ?? '', recebidosDia);
+  // "Para amanhã": média dos últimos 4 dias iguais da semana (olha até 90 dias para trás)
+  const recentes = useLiveQuery(
+    () => (day === hoje ? db.sales.where('date').aboveOrEqual(new Date(Date.now() - 90 * 864e5).toISOString()).toArray() : Promise.resolve([] as Sale[])),
+    [day, hoje],
+  );
+  const amanha = day === hoje && recentes ? sugestaoPreparo(recentes, addDays(hoje, 1)) : null;
 
   const removeBatch = async (batchId: string) => {
-    if (!confirm('Excluir esta venda? Esta ação não pode ser desfeita.')) return;
+    const noFiado = (sales ?? []).some((s) => s.batchId === batchId && s.customerId);
+    if (!confirm(`Excluir esta venda?${noFiado ? ' O fiado dela sai da conta do cliente.' : ''} Esta ação não pode ser desfeita.`)) return;
     await db.sales.where('batchId').equals(batchId).delete();
   };
   const removeLine = async (s: Sale) => {
@@ -74,13 +88,86 @@ export function Historico() {
         )}
       </div>
 
-      {(fundo > 0 || dinheiro > 0) && (
-        <p className="muted small drawer">
-          💵 Dinheiro esperado na gaveta: <b>{money(gaveta)}</b>
+      {day === hoje && fiado && fiado.resumo.devendo > 0 && (
+        <p className={`card inner small ${fiado.resumo.atrasado ? 'bad' : ''}`}>
+          📒 Fiado a receber: <b>{money(fiado.resumo.aReceber)}</b> · {fiado.resumo.devendo} cliente{fiado.resumo.devendo === 1 ? '' : 's'} devendo
+          {fiado.resumo.atrasados > 0 && ` · ${fiado.resumo.atrasados} vencido${fiado.resumo.atrasados === 1 ? '' : 's'}`}
           <br />
-          {fundo > 0 && `troco inicial ${money(fundo)} + `}vendas em dinheiro {money(dinheiro)}
-          {gastoDinheiro > 0 && ` − gastos em dinheiro ${money(gastoDinheiro)}`}
+          <span className="muted">Veja em Cadastros → Fiado.</span>
         </p>
+      )}
+
+      <div className="card drawer-card">
+        <div className="batch-head">
+          <span className="grow">
+            💵 Dinheiro que deveria ter: <b>{money(caixa.esperado)}</b>
+            {caixa.diferenca != null && (
+              <div className={`small ${Math.abs(caixa.diferenca) < 0.01 ? 'good' : 'bad'}`}>
+                {Math.abs(caixa.diferenca) < 0.01
+                  ? 'Conferido: o caixa bateu! 👏'
+                  : caixa.diferenca > 0
+                    ? `Conferido: sobrando ${money(caixa.diferenca)}`
+                    : `Conferido: faltando ${money(-caixa.diferenca)}`}
+              </div>
+            )}
+          </span>
+          <button className="ghost small" onClick={() => setConferindo(true)}>
+            Conferir caixa
+          </button>
+        </div>
+      </div>
+      {conferindo && (
+        <ConferirCaixa
+          dia={day}
+          vendas={sales ?? []}
+          gastos={gastosDia}
+          recebidos={recebidosDia}
+          fundoInicial={salvo?.fundo ?? settings?.fundoTroco ?? 0}
+          contadoInicial={salvo?.contado ?? ''}
+          onClose={() => setConferindo(false)}
+        />
+      )}
+
+      {recebidosDia.length > 0 && (
+        <section className="card">
+          <div className="batch-head">
+            <h3 className="grow" style={{ margin: 0 }}>
+              Fiado recebido
+            </h3>
+            <b className="good">{money(recebidosDia.reduce((a, r) => a + r.valor, 0))}</b>
+          </div>
+          <ul className="lines">
+            {recebidosDia.map((r) => (
+              <li key={r.id}>
+                <span className="muted small">{time(r.data)}</span>
+                <span className="grow">
+                  {nomeCliente(r.clienteId)}
+                  <div className="muted small">pagou no {METHOD_LABELS[r.forma] ?? r.forma}</div>
+                </span>
+                <b>{money(r.valor)}</b>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {amanha && amanha.itens.length > 0 && (
+        <section className="card">
+          <h3 style={{ margin: 0 }}>🍳 Para amanhã</h3>
+          <p className="muted small" style={{ margin: '4px 0' }}>
+            Média do que saiu nos últimos {amanha.dias.length} dia{amanha.dias.length === 1 ? '' : 's'} iguais da semana (
+            {amanha.dias.map((d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`).join(', ')}):
+          </p>
+          <ul className="lines">
+            {amanha.itens.slice(0, 12).map((i) => (
+              <li key={i.productId}>
+                <span className="grow">{i.nome}</span>
+                <b>{i.media}</b>
+                <span className="muted small">máx. {i.max}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <GastosDoDia day={day} gastos={gastos} />
@@ -99,6 +186,7 @@ export function Historico() {
                   <div className="muted small pay-desc">
                     {[...pays.entries()].map(([m, v]) => `${METHOD_LABELS[m] ?? m}${pays.size > 1 ? ' ' + money(v) : ''}`).join(' + ') ||
                       METHOD_LABELS[lines[0].method]}
+                    {lines[0].customerName ? ` · ${lines[0].customerName}` : ''}
                   </div>
                 </div>
                 <b className="nowrap">{money(bt.gross)}</b>
@@ -129,5 +217,84 @@ export function Historico() {
         })}
       </ul>
     </div>
+  );
+}
+
+function ConferirCaixa({
+  dia,
+  vendas,
+  gastos,
+  recebidos,
+  fundoInicial,
+  contadoInicial,
+  onClose,
+}: {
+  dia: string;
+  vendas: Sale[];
+  gastos: Gasto[];
+  recebidos: Recebimento[];
+  fundoInicial: number;
+  contadoInicial: number | '';
+  onClose: () => void;
+}) {
+  const [fundo, setFundo] = useState(fundoInicial);
+  const [contado, setContado] = useState<number | ''>(contadoInicial);
+  const c = conferirCaixa(vendas, gastos, fundo, contado, recebidos);
+  const salvar = async () => {
+    const outros = (await getCaixas()).filter((x) => x.dia !== dia);
+    await saveCaixas([...outros, { dia, fundo, contado }]);
+    onClose();
+  };
+  return (
+    <Modal title="Conferir o caixa" onClose={onClose}>
+      <Field label="Troco que você levou (R$)">
+        <NumInput value={fundo} onChange={setFundo} />
+      </Field>
+      <div className="card inner">
+          <ul className="lines">
+        <li>
+          <span className="grow">Troco levado</span>
+          <b>{money(c.fundo)}</b>
+        </li>
+        <li>
+          <span className="grow">Vendas em dinheiro</span>
+          <b>+ {money(c.dinheiro)}</b>
+        </li>
+        {c.fiadoDinheiro > 0 && (
+          <li>
+            <span className="grow">Fiado recebido em dinheiro</span>
+            <b>+ {money(c.fiadoDinheiro)}</b>
+          </li>
+        )}
+        <li>
+          <span className="grow">Gastos pagos com o caixa</span>
+          <b>− {money(c.gastosDinheiro)}</b>
+        </li>
+        <li>
+          <span className="grow">
+            <b>Deveria ter</b>
+          </span>
+          <b>{money(c.esperado)}</b>
+        </li>
+      </ul>
+        </div>
+      <Field label="Quanto tem de dinheiro agora (R$)" hint="Conte as notas e moedas. Pix e cartão você confere no extrato.">
+        <NumInput value={contado === '' ? 0 : contado} placeholder="conte as notas e moedas" onChange={(v) => setContado(v)} />
+      </Field>
+      {c.diferenca != null && (
+        <p className={Math.abs(c.diferenca) < 0.01 ? 'good' : 'bad'}>
+          <b>
+            {Math.abs(c.diferenca) < 0.01
+              ? 'O caixa bateu certinho! 👏'
+              : c.diferenca > 0
+                ? `Sobrando ${money(c.diferenca)}`
+                : `Faltando ${money(-c.diferenca)}`}
+          </b>
+        </p>
+      )}
+      <button className="primary full" onClick={salvar}>
+        Salvar conferência
+      </button>
+    </Modal>
   );
 }

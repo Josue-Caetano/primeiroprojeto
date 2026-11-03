@@ -1,7 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { db, getGastos } from '../../db/db';
-import { byPaymentMethod, groupSum, localDay, totals } from '../../domain/calc';
+import { db, getGastos, getRecebimentos } from '../../db/db';
+import { byPaymentMethod, groupSum, localDay, round2, totals } from '../../domain/calc';
+import { comTaxasFiado, fiadoDaLinha, gastosPorNome } from '../../domain/fiado';
 import { METHOD_LABELS } from '../../domain/types';
 import { Empty, Stat } from '../components/common';
 import { totalGastos } from '../components/Gastos';
@@ -59,12 +60,19 @@ export function Relatorios() {
   const products = useLiveQuery(() => db.products.toArray(), []);
   const allGastos = useLiveQuery(getGastos, []);
   const [fromDay, toDay] = [localDay(start), localDay(end)];
-  const gastoTotal = totalGastos((allGastos ?? []).filter((g) => g.data >= fromDay && g.data < toDay));
+  const gastosPeriodo = (allGastos ?? []).filter((g) => g.data >= fromDay && g.data < toDay);
+  const gastoTotal = totalGastos(gastosPeriodo);
+  const allRecebimentos = useLiveQuery(getRecebimentos, []);
+  const recebidos = (allRecebimentos ?? []).filter((r) => {
+    const d = localDay(r.data);
+    return d >= fromDay && d < toDay;
+  });
 
   const data = useMemo(() => {
     if (!sales) return null;
     const typeOf = new Map((products ?? []).map((p) => [p.id, p.type]));
-    const t = totals(sales);
+    // taxas de fiado recebido no cartão entram no período em que foi recebido
+    const t = comTaxasFiado(totals(sales), recebidos);
     const days = groupSum(sales, (s) => localDay(s.date)).sort((a, b) => a.key.localeCompare(b.key));
     const weekdays = groupSum(sales, (s) => new Date(s.date).getDay()).sort((a, b) => a.key - b.key);
     const hours = groupSum(sales, (s) => new Date(s.date).getHours()).sort((a, b) => a.key - b.key);
@@ -78,8 +86,14 @@ export function Relatorios() {
       categories: groupSum(sales, (s) => s.productType || typeOf.get(s.productId) || 'Sem categoria'),
       methods: byPaymentMethod(sales),
       activeDays: days.length,
+      melhorDia: [...days].sort((a, b) => b.gross - a.gross)[0] ?? null,
+      fiado: {
+        vendido: round2(sales.reduce((a, s) => a + fiadoDaLinha(s), 0)),
+        recebido: round2(recebidos.reduce((a, r) => a + r.valor, 0)),
+      },
     };
-  }, [sales, products]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sales, products, allRecebimentos, fromDay, toDay]);
 
   return (
     <div className="page">
@@ -122,6 +136,46 @@ export function Relatorios() {
             <Stat label="Média por dia trabalhado" value={money(data.t.gross / Math.max(data.activeDays, 1))} />
             <Stat label="Lucro médio por dia" value={money(data.t.net / Math.max(data.activeDays, 1))} />
           </div>
+
+          {data.melhorDia && data.activeDays > 1 && (
+            <p className="muted small" style={{ margin: '10px 2px 0' }}>
+              🏆 Melhor dia: <b>{dayLabel(data.melhorDia.key)}</b>, com {money(data.melhorDia.gross)} em {data.melhorDia.sales} vendas.
+            </p>
+          )}
+
+          {gastosPeriodo.length > 0 && (
+            <section className="card">
+              <h3>Gastos</h3>
+              <ul className="lines">
+                {gastosPorNome(gastosPeriodo).map((g) => (
+                  <li key={g.nome}>
+                    <span className="grow">
+                      {g.nome}
+                      {g.vezes > 1 ? ` (${g.vezes}×)` : ''}
+                    </span>
+                    <b className="bad">− {money(g.valor)}</b>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {(data.fiado.vendido > 0 || data.fiado.recebido > 0) && (
+            <section className="card">
+              <h3>Fiado</h3>
+              <ul className="lines">
+                <li>
+                  <span className="grow">Vendido no fiado</span>
+                  <b>{money(data.fiado.vendido)}</b>
+                </li>
+                <li>
+                  <span className="grow">Recebido de fiado</span>
+                  <b>{money(data.fiado.recebido)}</b>
+                </li>
+              </ul>
+              <p className="muted small">O fiado já conta no faturamento do dia da venda. Quem está devendo aparece em Cadastros → Fiado.</p>
+            </section>
+          )}
 
           {data.days.length > 1 && (
             <section className="card">

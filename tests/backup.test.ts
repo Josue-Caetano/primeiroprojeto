@@ -26,7 +26,7 @@ describe('backup', () => {
     expect(summarizeBackup(parsed)).toMatchObject({ products: 2, sales: 4, batches: 3 });
     // gastos, caixas e campos desconhecidos do app antigo voltam no arquivo exatamente como vieram
     const file = serializeBackup(out);
-    for (const k of ['gastos', 'caixas', 'app', 'settings']) expect(file[k], k).toEqual((fixture as Record<string, unknown>)[k] ?? file[k]);
+    for (const k of ['gastos', 'caixas', 'clientes', 'recebimentos', 'app', 'settings']) expect(file[k], k).toEqual((fixture as Record<string, unknown>)[k] ?? file[k]);
     expect(file).not.toHaveProperty('extra');
   });
 

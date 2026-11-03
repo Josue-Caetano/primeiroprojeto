@@ -4,7 +4,9 @@
 
 // 'pix' = Pix direto na chave (sem taxa).
 // 'pix_mq' = Pix pago pela maquininha (cobra a taxa feePix); mesmo código do app antigo.
-export type PaymentMethod = 'pix' | 'pix_mq' | 'debito' | 'credito' | 'dinheiro';
+// 'fiado' = o cliente leva agora e paga depois (sem taxa; a taxa entra quando ele pagar). Mesmo código do Vendeu.
+export type PaymentMethod = 'pix' | 'pix_mq' | 'debito' | 'credito' | 'dinheiro' | 'fiado';
+export const FIADO = 'fiado' as const;
 
 /** Versões anteriores deste app gravavam o Pix da maquininha como "pixMaquina". */
 export const normalizeMethod = (m: string) => (m === 'pixMaquina' ? 'pix_mq' : m);
@@ -20,6 +22,7 @@ export const METHOD_LABELS: Record<string, string> = {
   dinheiro: 'Dinheiro',
   debito: 'Débito',
   credito: 'Crédito',
+  fiado: 'Fiado',
   [MULTIPLE_METHODS]: 'Múltiplos',
 };
 
@@ -56,6 +59,10 @@ export interface Sale {
   feeValue: number;
   netProfit: number;
   date: string; // ISO
+  /** Venda no fiado: para quem e até quando vai pagar (AAAA-MM-DD). */
+  customerId?: string;
+  customerName?: string;
+  dueDate?: string;
 }
 
 export type InsumoUnit = 'g' | 'ml' | 'un';
@@ -99,6 +106,40 @@ export interface Settings {
   fundoTroco?: number;
   /** Logo do negócio como imagem data:URL. */
   logo?: string;
+  /** Mostra o botão "Fiado" na hora de cobrar (desligado só se for false). */
+  fiadoAtivo?: boolean;
+  /** Chave Pix que vai na mensagem de cobrança do fiado. */
+  chavePix?: string;
+}
+
+/** Cliente do fiado (mesmo formato do Vendeu). limite 0 = sem limite. */
+export interface Cliente {
+  id: string;
+  nome: string;
+  whatsapp: string;
+  obs: string;
+  limite: number;
+  criadoEm?: string;
+  [extra: string]: unknown;
+}
+
+/** Pagamento de fiado recebido. data = ISO; taxa = taxa da maquininha cobrada nesse recebimento (R$). */
+export interface Recebimento {
+  id: string;
+  clienteId: string;
+  data: string;
+  valor: number;
+  forma: string;
+  taxa: number;
+  [extra: string]: unknown;
+}
+
+/** Conferência do caixa de um dia: troco levado e dinheiro contado ('' = não contou). */
+export interface Caixa {
+  dia: string;
+  fundo: number;
+  contado: number | '';
+  [extra: string]: unknown;
 }
 
 /** Despesa do dia (mesmo formato do app antigo: data AAAA-MM-DD, valor em R$). */
@@ -124,8 +165,9 @@ export interface Backup {
   settings: Settings;
   auth?: Auth | null;
   gastos: Gasto[];
-  /** Aberturas/fechamentos de caixa do app antigo: guardados como vieram e devolvidos no backup. */
-  caixas: unknown[];
+  caixas: Caixa[];
+  clientes: Cliente[];
+  recebimentos: Recebimento[];
   /** Outros campos do backup que este app não usa (ex.: "app"), devolvidos intactos ao exportar. */
   extra: Record<string, unknown>;
   exportDate: string;
