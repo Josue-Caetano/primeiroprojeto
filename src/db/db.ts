@@ -5,7 +5,10 @@ import {
   normalizeMethod,
   type Auth,
   type Backup,
+  type Caixa,
+  type Cliente,
   type Gasto,
+  type Recebimento,
   type Insumo,
   type Payment,
   type Product,
@@ -15,7 +18,7 @@ import {
 } from '../domain/types';
 
 interface KV {
-  key: 'settings' | 'auth' | 'gastos' | 'caixas' | 'extra';
+  key: 'settings' | 'auth' | 'gastos' | 'caixas' | 'clientes' | 'recebimentos' | 'extra';
   value: unknown;
 }
 
@@ -39,6 +42,8 @@ export class AppDB extends Dexie {
     });
     // v2: Pix da maquininha passa a usar o mesmo código do app antigo ("pix_mq")
     this.version(2).upgrade((tx) => tx.table('sales').toCollection().modify(normalizeSale));
+    // v3: índice das vendas no fiado (ficha do cliente e saldos sem varrer todas as vendas)
+    this.version(3).stores({ sales: 'id, batchId, productId, date, customerId' });
     // Confere de novo a cada abertura: vendas "pixMaquina" podem chegar depois da
     // migração (ex.: gravadas por uma versão antiga ainda aberta em outra aba).
     this.on('ready', () =>
@@ -95,8 +100,24 @@ async function getKv<T>(key: KV['key'], fallback: T): Promise<T> {
   return ((await db.kv.get(key))?.value as T) ?? fallback;
 }
 
+export const getCaixas = () => getKv<Caixa[]>('caixas', []);
+export const saveCaixas = (c: Caixa[]) => db.kv.put({ key: 'caixas', value: c });
+export const getClientes = () => getKv<Cliente[]>('clientes', []);
+export const saveClientes = (c: Cliente[]) => db.kv.put({ key: 'clientes', value: c });
+export const getRecebimentos = () => getKv<Recebimento[]>('recebimentos', []);
+export const saveRecebimentos = (r: Recebimento[]) => db.kv.put({ key: 'recebimentos', value: r });
+
+/** Inclui ou troca (pelo id) um item de uma lista guardada no kv. */
+export async function upsertIn<T extends { id: string }>(get: () => Promise<T[]>, save: (l: T[]) => unknown, item: T) {
+  const all = await get();
+  await save(all.some((x) => x.id === item.id) ? all.map((x) => (x.id === item.id ? item : x)) : [...all, item]);
+}
+export async function removeIn<T extends { id: string }>(get: () => Promise<T[]>, save: (l: T[]) => unknown, id: string) {
+  await save((await get()).filter((x) => x.id !== id));
+}
+
 export async function exportBackup(): Promise<Backup> {
-  const [products, sales, insumos, recipes, settings, auth, gastos, caixas, extra] = await Promise.all([
+  const [products, sales, insumos, recipes, settings, auth, gastos, caixas, clientes, recebimentos, extra] = await Promise.all([
     db.products.toArray(),
     db.sales.orderBy('date').toArray(),
     db.insumos.toArray(),
@@ -104,7 +125,9 @@ export async function exportBackup(): Promise<Backup> {
     getSettings(),
     getAuth(),
     getGastos(),
-    getKv<unknown[]>('caixas', []),
+    getCaixas(),
+    getClientes(),
+    getRecebimentos(),
     getKv<Record<string, unknown>>('extra', {}),
   ]);
   const byCreated = (a: Product, b: Product) => a.createdAt.localeCompare(b.createdAt);
@@ -117,6 +140,8 @@ export async function exportBackup(): Promise<Backup> {
     ...(auth ? { auth } : {}),
     gastos,
     caixas,
+    clientes,
+    recebimentos,
     extra,
     exportDate: new Date().toISOString(),
   };
@@ -136,14 +161,20 @@ export async function restoreBackup(b: Backup, mode: RestoreMode = 'replace') {
       await saveSettings(b.settings);
       if (b.auth) await saveAuth(b.auth);
       await saveGastos(b.gastos);
-      await db.kv.put({ key: 'caixas', value: b.caixas });
+      await saveCaixas(b.caixas);
+      await saveClientes(b.clientes);
+      await saveRecebimentos(b.recebimentos);
       await db.kv.put({ key: 'extra', value: b.extra });
     } else {
       const cur = await getSettings();
       const categories = [...new Set([...cur.categories, ...b.settings.categories])];
       await saveSettings({ ...cur, categories });
       await saveGastos(mergeById(await getGastos(), b.gastos));
-      await db.kv.put({ key: 'caixas', value: mergeById(await getKv<unknown[]>('caixas', []), b.caixas) });
+      const caixas = new Map((await getCaixas()).map((c) => [c.dia, c]));
+      for (const c of b.caixas) if (!caixas.has(c.dia)) caixas.set(c.dia, c);
+      await saveCaixas([...caixas.values()]);
+      await saveClientes(mergeById(await getClientes(), b.clientes));
+      await saveRecebimentos(mergeById(await getRecebimentos(), b.recebimentos));
       await db.kv.put({ key: 'extra', value: { ...b.extra, ...(await getKv<Record<string, unknown>>('extra', {})) } });
     }
     await db.products.bulkPut(b.products);

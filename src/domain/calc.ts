@@ -1,4 +1,5 @@
 import {
+  FIADO,
   MULTIPLE_METHODS,
   normalizeMethod,
   type Insumo,
@@ -71,6 +72,8 @@ export function buildSales(
   settings: Settings,
   discount = 0,
   now: Date = new Date(),
+  /** Venda no fiado: cliente e data combinada, gravados em cada linha. */
+  fiado?: Pick<Sale, 'customerId' | 'customerName' | 'dueDate'>,
 ): Sale[] {
   const active = items.filter((i) => i.qty > 0);
   if (active.length === 0) throw new Error('Carrinho vazio');
@@ -87,6 +90,8 @@ export function buildSales(
   if (Math.abs(paid - total) > 0.009) {
     throw new Error(`Pagamentos (${paid.toFixed(2)}) diferente do total (${total.toFixed(2)})`);
   }
+
+  if (pays.some((p) => p.method === FIADO) && !fiado?.customerId) throw new Error('Escolha o cliente do fiado');
 
   // shares[p][i] = parte do pagamento p que cabe ao item i
   const shares = pays.map((p) => splitProportional(p.value, grosses));
@@ -113,6 +118,7 @@ export function buildSales(
       feeValue,
       netProfit: round2(grossValue - costValue - feeValue),
       date: new Date(now.getTime() + i).toISOString(),
+      ...(fiado?.customerId ? fiado : {}),
     };
   });
 }

@@ -592,6 +592,26 @@ main {
 .change-calc b {
   grid-column: 1 / -1;
 }
+.change-calc .notas {
+  grid-column: 1 / -1;
+}
+.aviso {
+  background: var(--primary-soft);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+.escolha .card.escolhido {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.escolha .card.bloqueado {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.saldo-cliente.atrasado {
+  border-color: var(--bad);
+}
 .discount-note {
   margin: 4px 0 0;
   color: var(--muted);
@@ -848,4 +868,24 @@ main {
   flex-direction: column;
   gap: 6px;
   margin: 8px 0;
+}
+
+.toggle {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 12px;
+  cursor: pointer;
+}
+.toggle input {
+  width: 22px;
+  min-height: 22px;
+  height: 22px;
+  margin-top: 2px;
+  accent-color: var(--primary);
+}
+
+.card.inner > .lines li:first-child {
+  border-top: 0;
+  margin-top: 0;
 }

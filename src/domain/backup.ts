@@ -2,7 +2,12 @@ import { DEFAULT_SETTINGS, normalizeMethod, type Backup, type Settings } from '.
 
 export class BackupError extends Error {}
 
-const KNOWN_KEYS = new Set(['products', 'sales', 'insumos', 'recipes', 'settings', 'auth', 'gastos', 'caixas', 'exportDate']);
+const KNOWN_KEYS = new Set([
+  'products', 'sales', 'insumos', 'recipes', 'settings', 'auth', 'gastos', 'caixas', 'clientes', 'recebimentos', 'exportDate',
+]);
+
+/** Gasto pago em dinheiro do caixa ("dinheiro") ou por Pix/cartão ("outro"), como no Vendeu. */
+export const formaGasto = (f: unknown) => (['outro', 'pix', 'pix_mq', 'cartao', 'debito', 'credito'].includes(str(f)) ? 'outro' : 'dinheiro');
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -130,20 +135,44 @@ export function parseBackup(input: string | unknown): Backup {
     data: str(g.data).slice(0, 10),
     valor: num(g.valor),
     descricao: str(g.descricao),
-    forma: str(g.forma, 'outro'),
+    forma: formaGasto(g.forma),
   })) as Backup['gastos'];
-  const caixas = Array.isArray(data.caixas) ? data.caixas : [];
+  const caixas = requireArray(data, 'caixas')
+    .filter((c) => /^\d{4}-\d{2}-\d{2}$/.test(str(c.dia)))
+    .map((c) => ({ ...c, dia: str(c.dia), fundo: num(c.fundo), contado: c.contado === '' || c.contado == null ? '' : num(c.contado) })) as Backup['caixas'];
+  const clientes = requireArray(data, 'clientes').map((c, i) => ({
+    ...c,
+    id: requireId(c, 'Cliente', i),
+    nome: str(c.nome),
+    whatsapp: str(c.whatsapp),
+    obs: str(c.obs),
+    limite: num(c.limite),
+  })) as Backup['clientes'];
+  const recebimentos = requireArray(data, 'recebimentos')
+    .filter((r) => !Number.isNaN(Date.parse(str(r.data))))
+    .map((r, i) => ({
+      ...r,
+      id: requireId(r, 'Recebimento', i),
+      clienteId: str(r.clienteId),
+      data: str(r.data),
+      valor: num(r.valor),
+      forma: normalizeMethod(str(r.forma, 'dinheiro')),
+      taxa: num(r.taxa),
+    })) as Backup['recebimentos'];
 
   const extra: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(data)) if (!KNOWN_KEYS.has(k)) extra[k] = v;
 
-  return { products, sales, insumos, recipes, settings, auth, gastos, caixas, extra, exportDate: str(data.exportDate) };
+  return { products, sales, insumos, recipes, settings, auth, gastos, caixas, clientes, recebimentos, extra, exportDate: str(data.exportDate) };
 }
 
 /** Objeto do arquivo .json: campos extras do app antigo voltam para o nível de cima, como vieram. */
 export function serializeBackup(b: Backup): Record<string, unknown> {
-  const { extra, exportDate, auth, ...rest } = b;
-  return { ...rest, ...(auth ? { auth } : {}), ...extra, exportDate };
+  const { extra, exportDate, auth, products, sales, insumos, recipes, settings, gastos, caixas, clientes, recebimentos } = b;
+  return {
+    products, sales, insumos, recipes, settings, ...(auth ? { auth } : {}),
+    gastos, caixas, clientes, recebimentos, ...extra, exportDate,
+  };
 }
 
 export function summarizeBackup(b: Backup) {

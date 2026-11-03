@@ -7,6 +7,7 @@ import { DEFAULT_SETTINGS } from './domain/types';
 import { Field } from './ui/components/common';
 import { RestoreBackup } from './ui/components/RestoreBackup';
 import { Ajustes } from './ui/pages/Ajustes';
+import { Clientes } from './ui/pages/Clientes';
 import { Fichas } from './ui/pages/Fichas';
 import { Historico } from './ui/pages/Historico';
 import { Insumos } from './ui/pages/Insumos';
@@ -15,7 +16,7 @@ import { Relatorios } from './ui/pages/Relatorios';
 import { Vender } from './ui/pages/Vender';
 
 type Tab = 'vender' | 'historico' | 'relatorios' | 'cadastros' | 'ajustes';
-type Cadastro = 'produtos' | 'insumos' | 'fichas';
+type Cadastro = 'produtos' | 'insumos' | 'fichas' | 'clientes';
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'vender', icon: '🛒', label: 'Vender' },
@@ -94,9 +95,9 @@ export function App() {
         </h1>
         {tab === 'cadastros' && (
           <div className="segmented">
-            {(['produtos', 'insumos', 'fichas'] as Cadastro[]).map((c) => (
+            {(['produtos', 'insumos', 'fichas', 'clientes'] as Cadastro[]).map((c) => (
               <button key={c} className={cadastro === c ? 'on' : ''} onClick={() => setCadastro(c)}>
-                {c === 'produtos' ? 'Produtos' : c === 'insumos' ? 'Insumos' : 'Fichas técnicas'}
+                {c === 'produtos' ? 'Produtos' : c === 'insumos' ? 'Insumos' : c === 'fichas' ? 'Fichas' : 'Fiado'}
               </button>
             ))}
           </div>
@@ -109,6 +110,7 @@ export function App() {
         {tab === 'cadastros' && cadastro === 'produtos' && <Produtos />}
         {tab === 'cadastros' && cadastro === 'insumos' && <Insumos />}
         {tab === 'cadastros' && cadastro === 'fichas' && <Fichas />}
+        {tab === 'cadastros' && cadastro === 'clientes' && <Clientes />}
         {tab === 'ajustes' && (
           <Ajustes
             onLogout={() => {
