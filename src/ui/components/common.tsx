@@ -47,7 +47,8 @@ export function Field({ label, children, hint }: { label: string; children: Reac
   );
 }
 
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+/** publico: a janela continua mostrando os valores mesmo com o olhinho fechado (cobrar, ficha do cliente). */
+export function Modal({ title, onClose, children, publico }: { title: string; onClose: () => void; children: ReactNode; publico?: boolean }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -55,7 +56,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
   }, [onClose]);
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+      <div className={publico ? 'modal publico' : 'modal'} role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <header>
           <h2>{title}</h2>
           <button className="ghost" onClick={onClose} aria-label="Fechar">

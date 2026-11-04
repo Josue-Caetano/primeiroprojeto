@@ -89,7 +89,7 @@ export function Historico() {
       </div>
 
       {day === hoje && fiado && fiado.resumo.devendo > 0 && (
-        <p className={`card inner small ${fiado.resumo.atrasado ? 'bad' : ''}`}>
+        <p className={`card inner small fiado-resumo ${fiado.resumo.atrasado ? 'bad' : ''}`}>
           📒 Fiado a receber: <b>{money(fiado.resumo.aReceber)}</b> · {fiado.resumo.devendo} cliente{fiado.resumo.devendo === 1 ? '' : 's'} devendo
           {fiado.resumo.atrasados > 0 && ` · ${fiado.resumo.atrasados} vencido${fiado.resumo.atrasados === 1 ? '' : 's'}`}
           <br />

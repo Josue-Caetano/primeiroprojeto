@@ -98,7 +98,7 @@ export function Clientes() {
       ) : (
         <ul className="list">
           {lista.map(({ c, s }) => (
-            <li key={c.id} className="card clickable" onClick={() => setAberto(c.id)}>
+            <li key={c.id} className="card clickable cli-item" onClick={() => setAberto(c.id)}>
               <div className="grow">
                 <b>{c.nome}</b>
                 <div className={`small ${s.atrasoDias > 0 ? 'bad' : 'muted'}`}>{quandoFiado(s, f.hoje)}</div>
@@ -156,7 +156,7 @@ function FichaCliente({ id, onClose, onEdit }: { id: string; onClose: () => void
   };
 
   return (
-    <Modal title={c.nome} onClose={onClose}>
+    <Modal title={c.nome} onClose={onClose} publico>
       <div className={`card inner saldo-cliente ${s.atrasoDias > 0 ? 'atrasado' : ''}`}>
         <span className="muted small">{s.saldo > 0 ? 'Está devendo' : 'Situação'}</span>
         <h2 className={s.atrasoDias > 0 ? 'bad' : ''} style={{ margin: '2px 0' }}>
@@ -192,7 +192,7 @@ function FichaCliente({ id, onClose, onEdit }: { id: string; onClose: () => void
             </li>
           )}
           {c.obs && (
-            <li>
+            <li className="nota-privada">
               <span className="grow muted">Anotação</span>
               <b>{c.obs}</b>
             </li>
@@ -295,7 +295,7 @@ function Receber({ cliente, saldo, onClose }: { cliente: Cliente; saldo: number;
     onClose();
   };
   return (
-    <Modal title={`Receber de ${cliente.nome}`} onClose={onClose}>
+    <Modal title={`Receber de ${cliente.nome}`} onClose={onClose} publico>
       <p className="muted">
         Está devendo <b>{money(saldo)}</b>
       </p>

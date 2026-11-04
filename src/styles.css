@@ -889,3 +889,61 @@ main {
   border-top: 0;
   margin-top: 0;
 }
+
+/* ---------- olhinho: valores escondidos ----------
+   Faturamento, lucro e o que os clientes devem viram uma tarja. A tela de cobrar e a ficha do
+   cliente (.publico) continuam aparecendo; preços dos produtos e o carrinho também. */
+.topbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.topbar-row .olho {
+  min-height: 40px;
+  width: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  border-color: transparent;
+}
+.topbar-row .olho[aria-pressed='true'] {
+  color: var(--primary);
+}
+body.privado
+  :is(
+    .today-bar b,
+    .meta span,
+    .stat strong,
+    .drawer-card .grow b,
+    .drawer-card .grow .small,
+    .batch-head > b,
+    .line-values,
+    .lines li > b,
+    .lines li > .nowrap,
+    .table td,
+    .hbar .value,
+    .cli-item > b,
+    .cli-item .small,
+    .fiado-resumo b,
+    .destaque-txt b
+  ):not(.publico *),
+body.privado .escolha .card .small {
+  color: transparent !important;
+  background: rgb(127 127 127 / 0.22);
+  border-radius: 6px;
+  user-select: none;
+}
+body.privado :is(.line-values, .drawer-card .grow .small):not(.publico *) *,
+body.privado .escolha .card .small * {
+  color: transparent !important;
+}
+body.privado :is(.vbars, .hbar .fill):not(.publico *) {
+  filter: blur(7px);
+}
+body.privado .tip,
+body.privado .nota-privada,
+body.privado .card.inner:has(> .lines > li.nota-privada:only-child) {
+  display: none !important;
+}

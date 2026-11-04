@@ -140,8 +140,8 @@ export function Relatorios() {
           </div>
 
           {data.melhorDia && data.activeDays > 1 && (
-            <p className="muted small" style={{ margin: '10px 2px 0' }}>
-              🏆 Melhor dia: <b>{dayLabel(data.melhorDia.key)}</b>, com {money(data.melhorDia.gross)} em {data.melhorDia.sales} vendas.
+            <p className="muted small destaque-txt" style={{ margin: '10px 2px 0' }}>
+              🏆 Melhor dia: {dayLabel(data.melhorDia.key)}, com <b>{money(data.melhorDia.gross)}</b> em <b>{data.melhorDia.sales}</b> vendas.
             </p>
           )}
 
