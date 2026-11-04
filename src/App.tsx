@@ -28,6 +28,20 @@ const TABS: { id: Tab; icon: string; label: string }[] = [
 
 // A senha é pedida no primeiro uso de cada dia: guarda o dia (local) do último desbloqueio.
 // sessionStorage não serve aqui porque o Android descarta a sessão ao trocar de app.
+const PRIVADO_KEY = 'vendas-ambulante:privado';
+
+const Olho = () => (
+  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+const OlhoFechado = () => (
+  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M3 3l18 18M10.6 5.1A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+  </svg>
+);
+
 const UNLOCK_KEY = 'vendas-ambulante:unlockedDay';
 const isUnlockedToday = () => {
   try {
@@ -57,6 +71,22 @@ export function App() {
   }, []);
   const settings = useLiveQuery(getSettings, []);
   const [unlocked, setUnlocked] = useState(isUnlockedToday);
+  // olhinho: esconde faturamento, lucro e o que os outros devem (para mostrar a tela ao cliente)
+  const [privado, setPrivado] = useState(() => {
+    try {
+      return localStorage.getItem(PRIVADO_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    document.body.classList.toggle('privado', privado);
+    try {
+      localStorage.setItem(PRIVADO_KEY, privado ? '1' : '');
+    } catch {
+      /* sem armazenamento: vale só agora */
+    }
+  }, [privado]);
 
   // app deixado aberto de um dia para o outro: bloqueia ao voltar para ele
   useEffect(() => {
@@ -89,10 +119,21 @@ export function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1 className="brand">
-          {settings?.logo && <img src={settings.logo} alt="" />}
-          {settings?.storeName || 'Vendas'}
-        </h1>
+        <div className="topbar-row">
+          <h1 className="brand">
+            {settings?.logo && <img src={settings.logo} alt="" />}
+            {settings?.storeName || 'Vendas'}
+          </h1>
+          <button
+            className="ghost olho"
+            aria-pressed={privado}
+            aria-label={privado ? 'Mostrar os valores' : 'Esconder os valores'}
+            title={privado ? 'Mostrar os valores' : 'Esconder os valores'}
+            onClick={() => setPrivado((p) => !p)}
+          >
+            {privado ? <OlhoFechado /> : <Olho />}
+          </button>
+        </div>
         {tab === 'cadastros' && (
           <div className="segmented">
             {(['produtos', 'insumos', 'fichas', 'clientes'] as Cadastro[]).map((c) => (

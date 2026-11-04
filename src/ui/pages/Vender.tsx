@@ -228,7 +228,7 @@ function Checkout({
   const missing = round2(total - paid);
 
   return (
-    <Modal title={`Total ${money(total)}`} onClose={onClose}>
+    <Modal title={`Total ${money(total)}`} onClose={onClose} publico>
       {discount > 0 && (
         <p className="discount-note">
           Desconto de <b>{money(discount)}</b> (de {money(fullTotal)})
