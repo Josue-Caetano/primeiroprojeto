@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Base64;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -38,7 +39,10 @@ public class MainActivity extends Activity {
     private static final int REQ_PICK_FILE = 1;
     private static final int REQ_SAVE_FILE = 2;
 
-    /** Intercepta downloads de "blob:" (backup) e manda o texto para o Android salvar. */
+    /**
+     * Intercepta downloads de "blob:" (backup .json e relatório .pdf) e manda o conteúdo para o Android
+     * salvar: texto como texto; o resto (PDF) em base64, para não estragar os bytes.
+     */
     private static final String DOWNLOAD_BRIDGE_JS =
             "(function(){" +
             "  if (window.__downloadBridge) return; window.__downloadBridge = true;" +
@@ -46,9 +50,16 @@ public class MainActivity extends Activity {
             "  HTMLAnchorElement.prototype.click = function(){" +
             "    if (this.download && this.href && this.href.indexOf('blob:') === 0) {" +
             "      var name = this.download;" +
-            "      fetch(this.href).then(function(r){ return r.text(); })" +
-            "        .then(function(t){ AndroidBridge.saveFile(name, t); })" +
-            "        .catch(function(e){ alert('Não foi possível salvar o backup: ' + e); });" +
+            "      fetch(this.href).then(function(r){ return r.blob(); }).then(function(b){" +
+            "        var type = b.type || 'application/octet-stream';" +
+            "        if (/^text\\/|json/.test(type)) return b.text().then(function(t){ AndroidBridge.saveFile(name, t); });" +
+            "        return new Promise(function(ok, erro){" +
+            "          var fr = new FileReader();" +
+            "          fr.onload = function(){ AndroidBridge.saveBase64(name, type, String(fr.result).split(',')[1] || ''); ok(); };" +
+            "          fr.onerror = function(){ erro(fr.error); };" +
+            "          fr.readAsDataURL(b);" +
+            "        });" +
+            "      }).catch(function(e){ alert('Não foi possível salvar o arquivo: ' + e); });" +
             "      return;" +
             "    }" +
             "    return click.call(this);" +
@@ -57,7 +68,7 @@ public class MainActivity extends Activity {
 
     private WebView webView;
     private ValueCallback<Uri[]> pendingFileCallback;
-    private String pendingSaveContent;
+    private byte[] pendingSaveBytes;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -130,15 +141,25 @@ public class MainActivity extends Activity {
     private class Bridge {
         @JavascriptInterface
         public void saveFile(final String fileName, final String content) {
-            runOnUiThread(() -> {
-                pendingSaveContent = content;
-                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType("application/json");
-                intent.putExtra(Intent.EXTRA_TITLE, fileName);
-                startActivityForResult(intent, REQ_SAVE_FILE);
-            });
+            pedirOndeSalvar(fileName, "application/json", content.getBytes(StandardCharsets.UTF_8));
         }
+
+        @JavascriptInterface
+        public void saveBase64(final String fileName, final String mime, final String base64) {
+            pedirOndeSalvar(fileName, mime, Base64.decode(base64, Base64.DEFAULT));
+        }
+    }
+
+    /** Abre o "Salvar como" do Android; o arquivo é gravado em onActivityResult. */
+    private void pedirOndeSalvar(final String fileName, final String mime, final byte[] bytes) {
+        runOnUiThread(() -> {
+            pendingSaveBytes = bytes;
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType(mime);
+            intent.putExtra(Intent.EXTRA_TITLE, fileName);
+            startActivityForResult(intent, REQ_SAVE_FILE);
+        });
     }
 
     @Override
@@ -151,15 +172,15 @@ public class MainActivity extends Activity {
                 pendingFileCallback = null;
             }
         } else if (requestCode == REQ_SAVE_FILE) {
-            String content = pendingSaveContent;
-            pendingSaveContent = null;
-            if (resultCode != RESULT_OK || data == null || data.getData() == null || content == null) return;
+            byte[] bytes = pendingSaveBytes;
+            pendingSaveBytes = null;
+            if (resultCode != RESULT_OK || data == null || data.getData() == null || bytes == null) return;
             try (OutputStream out = getContentResolver().openOutputStream(data.getData())) {
                 if (out == null) throw new IllegalStateException("sem acesso ao arquivo");
-                out.write(content.getBytes(StandardCharsets.UTF_8));
-                Toast.makeText(this, "Backup salvo", Toast.LENGTH_SHORT).show();
+                out.write(bytes);
+                Toast.makeText(this, "Arquivo salvo", Toast.LENGTH_SHORT).show();
             } catch (Exception e) {
-                Toast.makeText(this, "Erro ao salvar o backup: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Erro ao salvar o arquivo: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
         }
     }
