@@ -1,10 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { db, getGastos, getRecebimentos } from '../../db/db';
+import { db, getGastos, getRecebimentos, getSettings } from '../../db/db';
 import { byPaymentMethod, groupSum, localDay, round2, totals } from '../../domain/calc';
 import { comTaxasFiado, fiadoDaLinha, gastosPorNome } from '../../domain/fiado';
 import { METHOD_LABELS } from '../../domain/types';
-import { Empty, Stat } from '../components/common';
+import { Empty, Stat, downloadBlob } from '../components/common';
 import { totalGastos } from '../components/Gastos';
 import { dayLabel, money, pct } from '../format';
 
@@ -63,6 +63,8 @@ export function Relatorios() {
   const gastosPeriodo = (allGastos ?? []).filter((g) => g.data >= fromDay && g.data < toDay);
   const gastoTotal = totalGastos(gastosPeriodo);
   const allRecebimentos = useLiveQuery(getRecebimentos, []);
+  const settings = useLiveQuery(getSettings, []);
+  const [gerandoPdf, setGerandoPdf] = useState(false);
   const recebidos = (allRecebimentos ?? []).filter((r) => {
     const d = localDay(r.data);
     return d >= fromDay && d < toDay;
@@ -184,8 +186,18 @@ export function Relatorios() {
               <VBars
                 rows={
                   data.days.length > 45
-                    ? data.months.map((m) => ({ ...m, tick: m.key.slice(5, 7) + '/' + m.key.slice(2, 4), title: monthLabel(m.key) }))
-                    : data.days.map((d) => ({ ...d, tick: d.key.slice(8, 10) + '/' + d.key.slice(5, 7), title: dayLabel(d.key) }))
+                    ? data.months.map((m) => ({
+                        ...m,
+                        tick: m.key.slice(5, 7) + '/' + m.key.slice(2, 4),
+                        title: monthLabel(m.key),
+                        gastos: gastosPorNome(gastosPeriodo.filter((g) => g.data.startsWith(m.key))),
+                      }))
+                    : data.days.map((d) => ({
+                        ...d,
+                        tick: d.key.slice(8, 10) + '/' + d.key.slice(5, 7),
+                        title: dayLabel(d.key),
+                        gastos: gastosPorNome(gastosPeriodo.filter((g) => g.data === d.key)),
+                      }))
                 }
               />
             </section>
@@ -215,6 +227,38 @@ export function Relatorios() {
             <h3>Por horário</h3>
             <Bars rows={data.hours.map((h) => ({ label: `${String(h.key).padStart(2, '0')}h`, value: h.gross }))} />
           </section>
+
+          <button
+            className="primary full big"
+            disabled={gerandoPdf}
+            onClick={async () => {
+              setGerandoPdf(true);
+              try {
+                const { gerarRelatorioPDF } = await import('../pdf');
+                const { blob, nome } = await gerarRelatorioPDF({
+                  storeName: settings?.storeName ?? '',
+                  logo: settings?.logo,
+                  rotulo: PRESETS.find(([k]) => k === preset)![1],
+                  ini: preset === 'tudo' ? '2000-01-01' : fromDay,
+                  fim: toDay,
+                  t: data.t,
+                  gastos: gastosPorNome(gastosPeriodo),
+                  fiado: data.fiado,
+                  formas: data.methods.map((m) => ({ method: m.method, value: m.value })),
+                  produtos: data.products,
+                  dias: data.days,
+                  meses: data.months,
+                });
+                downloadBlob(blob, nome);
+              } catch (e) {
+                alert('Não foi possível gerar o PDF: ' + (e as Error).message);
+              } finally {
+                setGerandoPdf(false);
+              }
+            }}
+          >
+            {gerandoPdf ? 'Gerando PDF…' : '📄 Baixar relatório em PDF'}
+          </button>
         </>
       )}
     </div>
@@ -251,7 +295,18 @@ const monthLabel = (key: string) => {
   return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 };
 
-type VRow = { key: string; tick: string; title: string; gross: number; cost: number; fees: number; net: number; sales: number };
+type VRow = {
+  key: string;
+  tick: string;
+  title: string;
+  gross: number;
+  cost: number;
+  fees: number;
+  net: number;
+  sales: number;
+  /** gastos do dia (ou do mês) somados pelo nome */
+  gastos: { nome: string; valor: number; vezes: number }[];
+};
 
 const TIP_WIDTH = 224;
 
@@ -334,6 +389,21 @@ function VBars({ rows }: { rows: VRow[] }) {
             <span>Taxas</span>
             <b>{money(r.fees)}</b>
           </div>
+          {r.gastos.map((g) => (
+            <div className="tip-row" key={g.nome}>
+              <span>
+                {g.nome}
+                {g.vezes > 1 ? ` (${g.vezes}×)` : ''}
+              </span>
+              <b className="bad">− {money(g.valor)}</b>
+            </div>
+          ))}
+          {r.gastos.length > 0 && (
+            <div className="tip-row">
+              <span>Sobrou</span>
+              <b className="good">{money(r.net - r.gastos.reduce((a, g) => a + g.valor, 0))}</b>
+            </div>
+          )}
           <div className="tip-row">
             <span>Vendas</span>
             <b>{r.sales}</b>
