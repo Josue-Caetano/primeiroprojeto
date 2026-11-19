@@ -7,8 +7,6 @@ import {
   addDays,
   disponivelFiado,
   fiadoDaLinha,
-  mensagemCobranca,
-  numeroWhats,
   quandoFiado,
   resumoFiado,
   saldosFiado,
@@ -18,6 +16,7 @@ import {
 import { newId } from '../../domain/ids';
 import { METHOD_LABELS, PAYMENT_METHODS, type Cliente, type Sale } from '../../domain/types';
 import { Empty, Field, Modal, NumInput, Stat } from '../components/common';
+import { Cobrar } from '../components/Mensagens';
 import { money, time } from '../format';
 
 const normal = (s: string) =>
@@ -120,6 +119,7 @@ function FichaCliente({ id, onClose, onEdit }: { id: string; onClose: () => void
   const f = useFiado();
   const settings = useLiveQuery(getSettings, []);
   const [recebendo, setRecebendo] = useState(false);
+  const [cobrando, setCobrando] = useState(false);
   if (!f || !settings) return null;
   const c = f.clientes.find((x) => x.id === id);
   if (!c) return null;
@@ -139,21 +139,6 @@ function FichaCliente({ id, onClose, onEdit }: { id: string; onClose: () => void
     })),
     ...f.recebimentos.filter((r) => r.clienteId === id).map((r) => ({ tipo: 'pago' as const, date: r.data, key: r.id, r, valor: r.valor })),
   ].sort((a, b) => b.date.localeCompare(a.date));
-
-  const cobrar = async () => {
-    const msg = mensagemCobranca(c.nome, s, settings, f.hoje, money);
-    const n = numeroWhats(c.whatsapp);
-    if (n) {
-      window.open(`https://wa.me/${n}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(msg);
-      alert('Mensagem de cobrança copiada. Cole no WhatsApp do cliente.');
-    } catch {
-      prompt('Copie a mensagem de cobrança:', msg);
-    }
-  };
 
   return (
     <Modal title={c.nome} onClose={onClose} publico>
@@ -201,7 +186,7 @@ function FichaCliente({ id, onClose, onEdit }: { id: string; onClose: () => void
         </div>
       )}
       {s.saldo > 0 && (
-        <button className="ghost full" onClick={cobrar}>
+        <button className="ghost full" onClick={() => setCobrando(true)}>
           💬 {c.whatsapp ? 'Cobrar no WhatsApp' : 'Copiar mensagem de cobrança'}
         </button>
       )}
@@ -269,6 +254,7 @@ function FichaCliente({ id, onClose, onEdit }: { id: string; onClose: () => void
         </button>
       </div>
       {recebendo && <Receber cliente={c} saldo={s.saldo} onClose={() => setRecebendo(false)} />}
+      {cobrando && <Cobrar cliente={c} situacao={s} hoje={f.hoje} onClose={() => setCobrando(false)} />}
     </Modal>
   );
 }

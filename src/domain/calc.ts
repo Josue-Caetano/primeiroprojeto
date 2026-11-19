@@ -222,3 +222,74 @@ export function localDay(iso: string | Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+
+// ---------- Períodos do dia (mesmas faixas do Vendeu: manhã até 11:59, tarde 12:00–17:59, noite a partir das 18:00) ----------
+
+export const PERIODOS_DIA = [
+  { id: 'manha', nome: 'Manhã', faixa: 'até 12h', de: 0, ate: 12 },
+  { id: 'tarde', nome: 'Tarde', faixa: '12h às 18h', de: 12, ate: 18 },
+  { id: 'noite', nome: 'Noite', faixa: 'depois das 18h', de: 18, ate: 24 },
+] as const;
+export type PeriodoId = (typeof PERIODOS_DIA)[number]['id'];
+
+export const periodoDoDia = (iso: string): PeriodoId => {
+  const h = new Date(iso).getHours();
+  return PERIODOS_DIA.find((p) => h >= p.de && h < p.ate)!.id;
+};
+
+/** Totais de manhã, tarde e noite. A noite só entra se teve venda nela. */
+export function porPeriodoDoDia(sales: Sale[]) {
+  return PERIODOS_DIA.map((p) => ({ ...p, ...totals(sales.filter((s) => periodoDoDia(s.date) === p.id)) })).filter(
+    (p) => p.id !== 'noite' || p.batches > 0,
+  );
+}
+
+/**
+ * O que entrou em cada forma de pagamento num dia: vendas + fiado recebido (é o que bate com o extrato).
+ * O fiado vendido no dia ainda não entrou: vem separado em fiadoVendido e não soma no total.
+ */
+export function entradasPorForma(sales: Sale[], recebidos: { forma: string; valor: number }[] = []) {
+  const m = new Map<string, { method: string; vendas: number; fiado: number }>();
+  const de = (k: string) => {
+    if (!m.has(k)) m.set(k, { method: k, vendas: 0, fiado: 0 });
+    return m.get(k)!;
+  };
+  let fiadoVendido = 0;
+  for (const f of byPaymentMethod(sales)) {
+    if (f.method === 'fiado') fiadoVendido += f.value;
+    else de(f.method).vendas += f.value;
+  }
+  for (const r of recebidos) de(normalizeMethod(r.forma)).fiado += Number(r.valor) || 0;
+  const linhas = [...m.values()]
+    .map((x) => ({ ...x, vendas: round2(x.vendas), fiado: round2(x.fiado), total: round2(x.vendas + x.fiado) }))
+    .filter((x) => x.total > 0)
+    .sort((a, b) => b.total - a.total);
+  return { linhas, fiadoVendido: round2(fiadoVendido), total: round2(linhas.reduce((a, x) => a + x.total, 0)) };
+}
+
+type PeriodoTotais = ReturnType<typeof porPeriodoDoDia>[number];
+const noPeriodo = (id: PeriodoId) => (id === 'manha' ? 'de manhã' : id === 'tarde' ? 'à tarde' : 'à noite');
+
+/** Frase do dia: "A tarde vendeu R$ 50,00 a mais que a manhã." */
+export function fraseDoDia(ps: PeriodoTotais[], money: (n: number) => string) {
+  const m = ps.find((p) => p.id === 'manha')!;
+  const t = ps.find((p) => p.id === 'tarde')!;
+  if (m.gross && t.gross && Math.abs(m.gross - t.gross) >= 0.01) {
+    const [maior, menor] = m.gross > t.gross ? [m, t] : [t, m];
+    return `A ${maior.nome.toLowerCase()} vendeu ${money(maior.gross - menor.gross)} a mais que a ${menor.nome.toLowerCase()}.`;
+  }
+  if (m.gross && t.gross) return 'Manhã e tarde venderam igual.';
+  if (!t.gross && m.gross) return 'Ainda sem vendas à tarde.';
+  if (!m.gross && t.gross) return 'Nenhuma venda de manhã.';
+  return '';
+}
+
+/** Frase do relatório: qual período vende mais (média por dia trabalhado quando tem mais de um dia). */
+export function fraseMelhorPeriodo(ps: (PeriodoTotais & { media: number })[], dias: number, money: (n: number) => string) {
+  const com = ps.filter((p) => p.gross > 0).sort((a, b) => b.gross - a.gross);
+  if (com.length < 2) return com.length ? `Só teve venda ${noPeriodo(com[0].id)}.` : '';
+  const [a, b] = com;
+  return dias > 1
+    ? `A ${a.nome.toLowerCase()} vende mais: em média ${money(a.media)} por dia, contra ${money(b.media)} ${noPeriodo(b.id)}.`
+    : `A ${a.nome.toLowerCase()} vendeu mais: ${money(a.gross)}, contra ${money(b.gross)} ${noPeriodo(b.id)}.`;
+}

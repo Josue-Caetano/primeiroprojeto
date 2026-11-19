@@ -38,16 +38,27 @@ export interface SituacaoFiado {
   desde: string;
   vencimento: string;
   atrasoDias: number;
+  /** Compras ainda não pagas, da mais antiga para a mais nova (a primeira pode estar paga em parte). */
+  abertas: CompraAberta[];
 }
 
-export const SEM_FIADO: SituacaoFiado = { devido: 0, pago: 0, saldo: 0, compras: 0, desde: '', vencimento: '', atrasoDias: 0 };
+export interface CompraAberta {
+  date: string;
+  dueDate: string;
+  itens: { qty: number; nome: string }[];
+  valor: number;
+  /** quanto ainda falta pagar desta compra */
+  falta: number;
+}
+
+export const SEM_FIADO: SituacaoFiado = { devido: 0, pago: 0, saldo: 0, compras: 0, desde: '', vencimento: '', atrasoDias: 0, abertas: [] };
 
 /**
  * Situação do fiado de cada cliente. O que ele paga quita primeiro as compras mais antigas;
  * a primeira compra ainda aberta diz desde quando ele deve e quando vence.
  */
 export function saldosFiado(vendas: Sale[], recebimentos: Recebimento[], hoje: string) {
-  type Compra = { batchId: string; date: string; dueDate: string; valor: number };
+  type Compra = { batchId: string; date: string; dueDate: string; valor: number; itens: { qty: number; nome: string }[] };
   const m = new Map<string, { devido: number; pago: number; compras: Map<string, Compra> }>();
   const de = (id: string) => {
     if (!m.has(id)) m.set(id, { devido: 0, pago: 0, compras: new Map() });
@@ -59,8 +70,9 @@ export function saldosFiado(vendas: Sale[], recebimentos: Recebimento[], hoje: s
     if (!f) continue;
     const c = de(v.customerId);
     c.devido += f;
-    const k = c.compras.get(v.batchId) ?? { batchId: v.batchId, date: v.date, dueDate: v.dueDate ?? '', valor: 0 };
+    const k = c.compras.get(v.batchId) ?? { batchId: v.batchId, date: v.date, dueDate: v.dueDate ?? '', valor: 0, itens: [] };
     k.valor += f;
+    k.itens.push({ qty: Number(v.qty) || 0, nome: String(v.productName || '').trim() });
     c.compras.set(v.batchId, k);
   }
   for (const r of recebimentos) de(r.clienteId).pago += r.valor;
@@ -70,13 +82,15 @@ export function saldosFiado(vendas: Sale[], recebimentos: Recebimento[], hoje: s
     const compras = [...c.compras.values()].sort((a, b) => a.date.localeCompare(b.date));
     let resta = round2(c.pago);
     let aberta: Compra | null = null;
+    const abertas: CompraAberta[] = [];
     for (const k of compras) {
       if (resta >= round2(k.valor) - 0.009) {
         resta = round2(resta - k.valor);
         continue;
       }
-      aberta = k;
-      break;
+      if (!aberta) aberta = k;
+      abertas.push({ date: k.date, dueDate: k.dueDate, itens: k.itens, valor: round2(k.valor), falta: round2(k.valor - resta) });
+      resta = 0;
     }
     const saldo = Math.max(0, round2(c.devido - c.pago));
     const vencimento = saldo > 0 && aberta ? aberta.dueDate : '';
@@ -88,6 +102,7 @@ export function saldosFiado(vendas: Sale[], recebimentos: Recebimento[], hoje: s
       desde: saldo > 0 && aberta ? localDay(aberta.date) : '',
       vencimento,
       atrasoDias: vencimento && vencimento < hoje ? daysBetween(vencimento, hoje) : 0,
+      abertas,
     });
   }
   return out;
@@ -135,27 +150,6 @@ export function numeroWhats(tel: string) {
   const n = String(tel || '').replace(/\D/g, '').replace(/^0+/, '');
   if (!n) return '';
   return n.length <= 11 ? `55${n}` : n;
-}
-
-export function mensagemCobranca(nome: string, s: SituacaoFiado, settings: Settings, hoje: string, money: (n: number) => string) {
-  const primeiro = nome.trim().split(/\s+/)[0];
-  const loja = settings.storeName && settings.storeName !== 'Minhas Vendas' ? ` em ${settings.storeName}` : '';
-  const curta = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
-  const prazo = !s.vencimento
-    ? ''
-    : s.vencimento < hoje
-      ? ` (venceu em ${curta(s.vencimento)})`
-      : s.vencimento === hoje
-        ? ' (vence hoje)'
-        : ` (vence em ${curta(s.vencimento)})`;
-  return [
-    `Oi, ${primeiro}! Tudo bem?`,
-    `Passando para lembrar do seu fiado${loja}: *${money(s.saldo)}*${prazo}.`,
-    settings.chavePix ? `Se quiser, pode pagar no Pix: ${settings.chavePix}` : '',
-    'Obrigado!',
-  ]
-    .filter(Boolean)
-    .join('\n');
 }
 
 // ---------- Caixa ----------

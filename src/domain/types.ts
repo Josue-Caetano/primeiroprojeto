@@ -110,6 +110,15 @@ export interface Settings {
   fiadoAtivo?: boolean;
   /** Chave Pix que vai na mensagem de cobrança do fiado. */
   chavePix?: string;
+  /** Modelos de mensagem de cobrança do fiado (mesmo campo do Vendeu). Vazio/null = os modelos que vêm com o app. */
+  mensagens?: MensagemCobranca[] | null;
+}
+
+/** Modelo de mensagem de cobrança: o texto pode ter {nome}, {valor}, {itens}... */
+export interface MensagemCobranca {
+  id: string;
+  nome: string;
+  texto: string;
 }
 
 /** Cliente do fiado (mesmo formato do Vendeu). limite 0 = sem limite. */

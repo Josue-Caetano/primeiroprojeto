@@ -67,13 +67,15 @@ h4 {
 
 input,
 select,
+textarea,
 button {
   font: inherit;
   color: inherit;
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-height: 44px;
   padding: 8px 10px;
@@ -86,7 +88,8 @@ input[type='radio'] {
   min-height: 0;
 }
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   outline: 2px solid var(--primary);
   outline-offset: -1px;
 }
@@ -927,7 +930,8 @@ body.privado
     .cli-item > b,
     .cli-item .small,
     .fiado-resumo b,
-    .destaque-txt b
+    .destaque-txt b,
+    .valor-privado
   ):not(.publico *),
 body.privado .escolha .card .small {
   color: transparent !important;
@@ -946,4 +950,37 @@ body.privado .tip,
 body.privado .nota-privada,
 body.privado .card.inner:has(> .lines > li.nota-privada:only-child) {
   display: none !important;
+}
+
+textarea {
+  resize: vertical;
+  line-height: 1.4;
+}
+.link-btn {
+  border: 0;
+  background: none;
+  min-height: 0;
+  padding: 0;
+  color: var(--primary);
+  text-decoration: underline;
+  font-size: inherit;
+}
+.modelo-msg {
+  display: grid;
+  gap: 8px;
+}
+.variaveis code {
+  background: var(--primary-soft);
+  border-radius: 6px;
+  padding: 0 4px;
+  margin-right: 2px;
+}
+
+.aviso-backup {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.aviso-backup .row {
+  justify-content: flex-end;
 }
