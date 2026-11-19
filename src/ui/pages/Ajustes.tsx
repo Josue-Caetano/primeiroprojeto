@@ -1,10 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
-import { exportBackup, getAuth, getSettings, saveAuth, saveSettings, wipeAll } from '../../db/db';
+import { getAuth, getSettings, saveAuth, saveSettings, wipeAll } from '../../db/db';
 import { hashPassword, verifyPassword } from '../../domain/auth';
-import { backupFileName, serializeBackup } from '../../domain/backup';
 import type { Settings } from '../../domain/types';
-import { Field, NumInput, downloadJson } from '../components/common';
+import { Field, NumInput } from '../components/common';
+import { baixarBackup } from '../components/AvisoBackup';
+import { textoBackup } from '../avisoBackup';
+import { EditarMensagens } from '../components/Mensagens';
 import { RestoreBackup } from '../components/RestoreBackup';
 
 export function Ajustes({ onLogout }: { onLogout: () => void }) {
@@ -13,6 +15,8 @@ export function Ajustes({ onLogout }: { onLogout: () => void }) {
   const [s, setS] = useState<Settings | null>(null);
   const [newCat, setNewCat] = useState('');
   const [saved, setSaved] = useState(false);
+  const [mensagens, setMensagens] = useState(false);
+  const [ultimoBackup, setUltimoBackup] = useState(textoBackup);
 
   useEffect(() => {
     if (stored && !s) setS(stored);
@@ -21,7 +25,8 @@ export function Ajustes({ onLogout }: { onLogout: () => void }) {
   if (!s) return null;
 
   const save = async (next = s) => {
-    await saveSettings(next);
+    // os modelos de mensagem são editados em outra tela: não sobrescrever com a cópia antiga desta
+    await saveSettings({ ...next, mensagens: (await getSettings()).mensagens });
     setS(next);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
@@ -65,6 +70,10 @@ export function Ajustes({ onLogout }: { onLogout: () => void }) {
             <span className="muted small">Mostra o botão Fiado na hora de cobrar. Clientes e quem deve ficam em Cadastros → Fiado.</span>
           </span>
         </label>
+        <button className="ghost full" onClick={() => setMensagens(true)}>
+          💬 Mensagens de cobrança
+        </button>
+        {mensagens && <EditarMensagens onClose={() => setMensagens(false)} />}
         <h4>Logo</h4>
         <div className="logo-row">
           {s.logo ? <img className="logo-preview" src={s.logo} alt="Logo" /> : <span className="muted small">Sem logo</span>}
@@ -142,9 +151,16 @@ export function Ajustes({ onLogout }: { onLogout: () => void }) {
           Gera um arquivo .json com tudo (produtos, vendas, insumos, fichas e ajustes), no mesmo formato do app antigo. Guarde fora do
           celular (Drive, e-mail, WhatsApp).
         </p>
-        <button className="primary full" onClick={async () => downloadJson(serializeBackup(await exportBackup()), backupFileName())}>
+        <button
+          className="primary full"
+          onClick={async () => {
+            await baixarBackup();
+            setUltimoBackup(textoBackup());
+          }}
+        >
           Baixar backup
         </button>
+        <p className="muted small">{ultimoBackup}</p>
         <RestoreBackup allowMerge />
       </section>
 

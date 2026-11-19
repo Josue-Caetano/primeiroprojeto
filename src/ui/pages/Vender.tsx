@@ -7,6 +7,7 @@ import { FIADO, METHOD_LABELS, PAYMENT_METHODS, type Payment, type PaymentMethod
 import { Empty, Modal, NumInput } from '../components/common';
 import { money } from '../format';
 import { PassoFiado } from './Clientes';
+import { AvisoBackup } from '../components/AvisoBackup';
 
 export function Vender() {
   const products = useLiveQuery(() => db.products.toArray(), []);
@@ -75,6 +76,7 @@ export function Vender() {
         </div>
       )}
       {flash && <div className="flash">{flash}</div>}
+      {products.length > 0 && <AvisoBackup temDados />}
 
       {categories.length > 1 && (
         <div className="chips">

@@ -1,10 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import { db, getCaixas, getGastos, getRecebimentos, getSettings, saveCaixas } from '../../db/db';
-import { localDay, salePayments, totals } from '../../domain/calc';
+import { entradasPorForma, fraseDoDia, localDay, porPeriodoDoDia, salePayments, totals } from '../../domain/calc';
 import { addDays, comTaxasFiado, conferirCaixa, sugestaoPreparo } from '../../domain/fiado';
 import { METHOD_LABELS, type Gasto, type Recebimento, type Sale } from '../../domain/types';
-import { Field, Modal, NumInput, Empty, Stat } from '../components/common';
+import { Bars, Field, Modal, NumInput, Empty, Stat } from '../components/common';
 import { useFiado } from './Clientes';
 import { GastosDoDia, totalGastos } from '../components/Gastos';
 import { dayLabel, money, time } from '../format';
@@ -41,6 +41,9 @@ export function Historico() {
   const gastosDia = gastos.filter((g) => g.data === day);
   const gastoTotal = totalGastos(gastosDia);
   const [conferindo, setConferindo] = useState(false);
+  // o que entrou em cada forma: vendas + fiado recebido (é o que bate com o extrato da maquininha e do banco)
+  const entradas = entradasPorForma(sales ?? [], recebidosDia);
+  const periodos = porPeriodoDoDia(sales ?? []);
   const nomeCliente = (id: string) => fiado?.clientes.find((c) => c.id === id)?.nome ?? 'Cliente apagado';
 
   // conferência da gaveta: troco + vendas em dinheiro + fiado recebido em dinheiro − gastos pagos com o caixa
@@ -95,6 +98,49 @@ export function Historico() {
           <br />
           <span className="muted">Veja em Cadastros → Fiado.</span>
         </p>
+      )}
+
+      {(entradas.linhas.length > 0 || entradas.fiadoVendido > 0) && (
+        <section className="card">
+          <h3 style={{ margin: 0 }}>Por forma de pagamento</h3>
+          <ul className="lines">
+            {entradas.linhas.map((f) => (
+              <li key={f.method}>
+                <span className="grow">
+                  {METHOD_LABELS[f.method] ?? f.method}
+                  {f.fiado > 0 && (
+                    <div className="muted small valor-privado">
+                      {f.vendas > 0 ? `${money(f.vendas)} de vendas + ` : ''}
+                      {money(f.fiado)} de fiado recebido
+                    </div>
+                  )}
+                </span>
+                <b>{money(f.total)}</b>
+              </li>
+            ))}
+            {entradas.linhas.length > 1 && (
+              <li>
+                <span className="grow">
+                  <b>Entrou no dia</b>
+                </span>
+                <b>{money(entradas.total)}</b>
+              </li>
+            )}
+            {entradas.fiadoVendido > 0 && (
+              <li>
+                <span className="grow">
+                  Vendido no fiado
+                  <div className="muted small">ainda não entrou: fica a receber</div>
+                </span>
+                <b className="muted">{money(entradas.fiadoVendido)}</b>
+              </li>
+            )}
+          </ul>
+          <p className="muted small" style={{ margin: '6px 0 0' }}>
+            Cada forma soma as vendas e o fiado recebido no dia: é o que deve bater com o extrato da maquininha e do banco.
+            {entradas.linhas.some((f) => f.method === 'dinheiro') ? ' O dinheiro você confere no caixa.' : ''}
+          </p>
+        </section>
       )}
 
       <div className="card drawer-card">
@@ -171,6 +217,16 @@ export function Historico() {
       )}
 
       <GastosDoDia day={day} gastos={gastos} />
+
+      {t.batches > 0 && (
+        <section className="card">
+          <h3 style={{ margin: 0 }}>🕒 Por período</h3>
+          <Bars rows={periodos.map((p) => ({ label: p.nome, value: p.gross }))} />
+          <p className="muted small" style={{ margin: '6px 0 0' }}>
+            <span className="valor-privado">{fraseDoDia(periodos, money)}</span> Manhã até 12h, tarde das 12h às 18h, noite depois das 18h.
+          </p>
+        </section>
+      )}
 
       {batches.length === 0 && <Empty>Nenhuma venda neste dia.</Empty>}
       <ul className="batch-list">

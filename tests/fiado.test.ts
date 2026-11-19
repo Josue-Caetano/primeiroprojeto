@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { buildSales } from '../src/domain/calc';
-import { comTaxasFiado, conferirCaixa, disponivelFiado, gastosPorNome, mensagemCobranca, numeroWhats, resumoFiado, saldosFiado, sugestaoPreparo } from '../src/domain/fiado';
+import { comTaxasFiado, conferirCaixa, disponivelFiado, gastosPorNome, numeroWhats, resumoFiado, saldosFiado, sugestaoPreparo } from '../src/domain/fiado';
 import { totals } from '../src/domain/calc';
 import { parseBackup } from '../src/domain/backup';
 import type { Product, Recebimento, Settings } from '../src/domain/types';
 import { fixture } from './fixture';
+import { MENSAGENS_PADRAO, itensDoFiado, modeloSugerido, modelos, preencher, varsCobranca } from '../src/domain/mensagens';
 
 const b = parseBackup(fixture);
 const settings: Settings = { ...b.settings, chavePix: '66999990000' };
@@ -40,12 +41,30 @@ describe('fiado', () => {
     expect(r.net).toBe(+(t.net - 2.46).toFixed(2));
   });
 
-  it('mensagem de cobrança e número do WhatsApp', () => {
-    const msg = mensagemCobranca('Maria Silva', { devido: 20, pago: 0, saldo: 20, compras: 1, desde: '2026-10-01', vencimento: '2026-10-08', atrasoDias: 2 }, settings, '2026-10-10', money);
-    expect(msg).toContain('Oi, Maria!');
-    expect(msg).toContain('*R$ 20,00* (venceu em 08/10)');
-    expect(msg).toContain('Pix: 66999990000');
+  it('mensagem de cobrança (modelos) e número do WhatsApp', () => {
+    const item = [{ product: salgado, qty: 2, unitPrice: 10 }];
+    const c1 = buildSales(item, [{ method: 'fiado', value: 20 }], settings, 0, new Date(2026, 9, 1, 12), { customerId: 'c1', customerName: 'Maria', dueDate: '2026-10-08' });
+    const s = saldosFiado(c1, [], '2026-10-10').get('c1')!;
+    const vars = varsCobranca({ nome: 'Maria Silva' }, s, settings, '2026-10-10', money);
+    const msg = preencher(modelos(settings).find((m) => m.id === modeloSugerido(s, '2026-10-10'))!.texto, vars);
+    expect(modeloSugerido(s, '2026-10-10')).toBe('atrasado');
+    expect(msg).toBe('Oi, Maria, tudo bem? O seu fiado de *R$ 20,00* venceu em 08/10. Consegue me dizer um dia bom para acertar?\nSe quiser, pode pagar no Pix: 66999990000');
+    const lembrete = preencher(MENSAGENS_PADRAO[0].texto, { ...vars, prazo: '', pix_linha: '' });
+    expect(lembrete).toBe('Oi, Maria! Tudo bem?\nPassando para lembrar do seu fiado: *R$ 20,00*.\nObrigado!');
     expect(numeroWhats('(66) 99999-0000')).toBe('5566999990000');
+  });
+
+  it('{itens}: compras em aberto com o que levou; paga em parte mostra quanto falta', () => {
+    const c1 = buildSales([{ product: salgado, qty: 2, unitPrice: 10 }], [{ method: 'fiado', value: 20 }], settings, 0, new Date(2026, 10, 5, 12), { customerId: 'c1', customerName: 'Maria', dueDate: '' });
+    const c2 = buildSales([{ product: salgado, qty: 1, unitPrice: 5 }], [{ method: 'fiado', value: 5 }], settings, 0, new Date(2026, 10, 6, 12), { customerId: 'c1', customerName: 'Maria', dueDate: '' });
+    const rec: Recebimento[] = [{ id: 'r', clienteId: 'c1', data: '2026-11-07T12:00:00Z', valor: 8, forma: 'pix', taxa: 0 }];
+    const s = saldosFiado([...c1, ...c2], rec, '2026-11-10').get('c1')!;
+    expect(s.abertas.map((a) => a.falta)).toEqual([12, 5]);
+    const nome = salgado.name.trim();
+    expect(itensDoFiado(s.abertas, money)).toBe(`• 05/11 · 2× ${nome} · R$ 12,00 (de R$ 20,00, já pagou R$ 8,00)\n• 06/11 · 1× ${nome} · R$ 5,00`);
+    // modelo personalizado no backup substitui os que vêm com o app
+    expect(modelos({ ...settings, mensagens: [{ id: 'x', nome: 'Meu', texto: '{nome}: {itens}' }] })).toHaveLength(1);
+    expect(modelos({ ...settings, mensagens: null })).toBe(MENSAGENS_PADRAO);
   });
 });
 

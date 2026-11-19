@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { parseNum } from '../format';
+import { money, parseNum } from '../format';
 
 /** Campo numérico que aceita vírgula e não "briga" com o cursor enquanto o usuário digita. */
 export function NumInput({
@@ -95,4 +95,22 @@ export function downloadBlob(blob: Blob, filename: string) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Barras horizontais com o valor em reais. */
+export function Bars({ rows }: { rows: { label: string; value: number }[] }) {
+  const max = Math.max(...rows.map((r) => r.value), 1);
+  return (
+    <div className="hbars">
+      {rows.map((r) => (
+        <div key={r.label} className="hbar">
+          <span className="label">{r.label}</span>
+          <div className="track">
+            <div className="fill" style={{ width: `${(r.value / max) * 100}%` }} />
+          </div>
+          <span className="value">{money(r.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
 }

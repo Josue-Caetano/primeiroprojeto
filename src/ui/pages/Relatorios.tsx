@@ -1,10 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { db, getGastos, getRecebimentos, getSettings } from '../../db/db';
-import { byPaymentMethod, groupSum, localDay, round2, totals } from '../../domain/calc';
+import { byPaymentMethod, fraseMelhorPeriodo, groupSum, localDay, porPeriodoDoDia, round2, totals } from '../../domain/calc';
 import { comTaxasFiado, fiadoDaLinha, gastosPorNome } from '../../domain/fiado';
 import { METHOD_LABELS } from '../../domain/types';
-import { Empty, Stat, downloadBlob } from '../components/common';
+import { Bars, Empty, Stat, downloadBlob } from '../components/common';
 import { totalGastos } from '../components/Gastos';
 import { dayLabel, money, pct } from '../format';
 
@@ -88,6 +88,8 @@ export function Relatorios() {
       categories: groupSum(sales, (s) => s.productType || typeOf.get(s.productId) || 'Sem categoria'),
       methods: byPaymentMethod(sales),
       activeDays: days.length,
+      // manhã, tarde e noite; a média é por dia trabalhado (para comparar períodos com movimentos diferentes)
+      periodos: porPeriodoDoDia(sales).map((p) => ({ ...p, media: days.length ? round2(p.gross / days.length) : 0 })),
       melhorDia: [...days].sort((a, b) => b.gross - a.gross)[0] ?? null,
       fiado: {
         vendido: round2(sales.reduce((a, s) => a + fiadoDaLinha(s), 0)),
@@ -224,6 +226,24 @@ export function Relatorios() {
           </section>
 
           <section className="card">
+            <h3>Manhã, tarde e noite</h3>
+            <Bars rows={data.periodos.map((p) => ({ label: p.nome, value: p.gross }))} />
+            {data.activeDays > 1 && (
+              <ul className="lines">
+                {data.periodos.map((p) => (
+                  <li key={p.id}>
+                    <span className="grow">{p.nome} · média por dia</span>
+                    <b>{money(p.media)}</b>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="muted small" style={{ margin: '6px 0 0' }}>
+              <span className="valor-privado">{fraseMelhorPeriodo(data.periodos, data.activeDays, money)}</span> Manhã até 12h, tarde das 12h às 18h, noite depois das 18h.
+            </p>
+          </section>
+
+          <section className="card">
             <h3>Por horário</h3>
             <Bars rows={data.hours.map((h) => ({ label: `${String(h.key).padStart(2, '0')}h`, value: h.gross }))} />
           </section>
@@ -248,6 +268,7 @@ export function Relatorios() {
                   produtos: data.products,
                   dias: data.days,
                   meses: data.months,
+                  periodos: data.periodos,
                 });
                 downloadBlob(blob, nome);
               } catch (e) {
@@ -414,19 +435,3 @@ function VBars({ rows }: { rows: VRow[] }) {
   );
 }
 
-function Bars({ rows }: { rows: { label: string; value: number }[] }) {
-  const max = Math.max(...rows.map((r) => r.value), 1);
-  return (
-    <div className="hbars">
-      {rows.map((r) => (
-        <div key={r.label} className="hbar">
-          <span className="label">{r.label}</span>
-          <div className="track">
-            <div className="fill" style={{ width: `${(r.value / max) * 100}%` }} />
-          </div>
-          <span className="value">{money(r.value)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}

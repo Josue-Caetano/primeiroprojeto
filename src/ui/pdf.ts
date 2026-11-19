@@ -22,6 +22,8 @@ export interface DadosRelatorio {
   produtos: Linha[];
   dias: Linha[];
   meses: Linha[];
+  /** manhã, tarde e noite, com a média por dia trabalhado */
+  periodos?: { nome: string; faixa: string; batches: number; gross: number; media: number }[];
 }
 
 type RGB = [number, number, number];
@@ -202,6 +204,14 @@ export async function gerarRelatorioPDF(r: DadosRelatorio, agora = new Date()): 
     [{ t: 'Forma', w: 100 }, { t: '%', w: 30, dir: true }, { t: 'Recebido', w: largura - 130, dir: true }],
     r.formas.map((f) => [METHOD_LABELS[f.method] ?? f.method, `${r.t.gross ? Math.round((f.value / r.t.gross) * 100) : 0}%`, money(f.value)]),
   );
+
+  if (r.periodos?.some((p) => p.batches)) {
+    titulo('Manhã, tarde e noite');
+    tabela(
+      [{ t: 'Período', w: 82 }, { t: 'Vendas', w: 22, dir: true }, { t: 'Vendido', w: 37, dir: true }, { t: 'Média por dia', w: largura - 141, dir: true }],
+      r.periodos.map((p) => [`${p.nome} (${p.faixa})`, numero(p.batches), money(p.gross), money(p.media)]),
+    );
+  }
 
   const colsQtd: Col[] = [
     { t: 'Produto', w: 82 },

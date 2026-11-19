@@ -3,6 +3,7 @@ import { restoreBackup, type RestoreMode } from '../../db/db';
 import { parseBackup, summarizeBackup } from '../../domain/backup';
 import type { Backup } from '../../domain/types';
 import { dateTime } from '../format';
+import { backupFeito } from '../avisoBackup';
 
 /** Escolhe um arquivo de backup, mostra o resumo e restaura. */
 export function RestoreBackup({ allowMerge, onDone }: { allowMerge?: boolean; onDone?: () => void }) {
@@ -28,6 +29,8 @@ export function RestoreBackup({ allowMerge, onDone }: { allowMerge?: boolean; on
     setBusy(true);
     try {
       await restoreBackup(backup, mode);
+      // trocou tudo pelo arquivo: os dados do aparelho são os do backup
+      if (mode === 'replace') backupFeito();
       if (onDone) onDone();
       else location.reload();
     } catch (e) {
