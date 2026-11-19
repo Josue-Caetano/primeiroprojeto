@@ -4,3 +4,4 @@ dist
 .DS_Store
 # backups reais contêm dados pessoais e a senha: não versionar
 backup_*.json
+*.tsbuildinfo
