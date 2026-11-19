@@ -136,9 +136,23 @@ export function Relatorios() {
             <Stat label="Vendas" value={data.t.batches} />
             <Stat label="Itens vendidos" value={data.t.items} />
             <Stat label="Ticket médio" value={money(data.t.gross / data.t.batches)} />
-            <Stat label="Margem" value={pct(data.t.gross ? (data.t.net / data.t.gross) * 100 : 0)} />
             <Stat label="Média por dia trabalhado" value={money(data.t.gross / Math.max(data.activeDays, 1))} />
+            <Stat label="Margem" value={pct(data.t.gross ? (data.t.net / data.t.gross) * 100 : 0)} />
+            {gastoTotal > 0 && (
+              <Stat
+                label="Margem após gastos"
+                value={pct(data.t.gross ? ((data.t.net - gastoTotal) / data.t.gross) * 100 : 0)}
+                tone={data.t.net - gastoTotal >= 0 ? undefined : 'bad'}
+              />
+            )}
             <Stat label="Lucro médio por dia" value={money(data.t.net / Math.max(data.activeDays, 1))} />
+            {gastoTotal > 0 && (
+              <Stat
+                label="Lucro médio por dia após gastos"
+                value={money((data.t.net - gastoTotal) / Math.max(data.activeDays, 1))}
+                tone={data.t.net - gastoTotal >= 0 ? undefined : 'bad'}
+              />
+            )}
           </div>
 
           {data.melhorDia && data.activeDays > 1 && (
